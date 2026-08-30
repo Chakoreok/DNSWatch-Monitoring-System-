@@ -6,6 +6,8 @@ let devicesSearchTimeout = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   fetchDevices();
+  // Auto refresh every 4 seconds
+  setInterval(fetchDevices, 4000);
 });
 
 function debounceDevicesSearch() {
@@ -34,9 +36,17 @@ async function fetchDevices() {
 
       if (data.devices && data.devices.length > 0) {
         tbody.innerHTML = data.devices.map(dev => {
-          const typeIcon = (dev.device_type || '').toLowerCase().includes('android')
-            ? '<i class="fa-brands fa-android" style="color:#10B981"></i> Android'
-            : '<i class="fa-brands fa-windows" style="color:#00A4EF"></i> Windows';
+          let typeIcon = '<i class="fa-solid fa-desktop" style="color:#2563EB"></i> Workstation';
+          const dtype = (dev.device_type || '').toLowerCase();
+          if (dtype.includes('android') || dtype.includes('mobile')) {
+            typeIcon = '<i class="fa-brands fa-android" style="color:#10B981"></i> Android';
+          } else if (dtype.includes('apple') || dtype.includes('ios') || dtype.includes('mac')) {
+            typeIcon = '<i class="fa-brands fa-apple" style="color:#64748B"></i> Apple';
+          } else if (dtype.includes('windows')) {
+            typeIcon = '<i class="fa-brands fa-windows" style="color:#00A4EF"></i> Windows';
+          } else {
+            typeIcon = '<i class="fa-solid fa-network-wired" style="color:#64748B"></i> ' + (dev.device_type || 'Host');
+          }
 
           const statBadge = (dev.status || 'Active').toLowerCase() === 'active'
             ? '<span class="badge badge-safe">Active</span>'
@@ -52,9 +62,9 @@ async function fetchDevices() {
               <td style="color: var(--text-muted); font-size: 11.5px;">${dev.last_seen || '-'}</td>
               <td>${statBadge}</td>
               <td>
-                <button class="btn-icon" title="Device Details">
+                <a href="/dns-logs?search=${encodeURIComponent(dev.ip_address || dev.client_ip)}" class="btn-icon" title="View Device DNS Logs">
                   <i class="fa-regular fa-eye"></i>
-                </button>
+                </a>
               </td>
             </tr>
           `;

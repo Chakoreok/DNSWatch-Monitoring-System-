@@ -464,10 +464,37 @@ class DNSSnifferService:
             }
             self.recent_alerts_buffer.appendleft(ui_alert_entry)
             
-        try:
-            self.log_queue.put_nowait(log_payload)
-        except queue.Full:
-            pass
+        if not self.is_running and self.app:
+            with self.app.app_context():
+                try:
+                    log_item = dict(log_payload)
+                    alert_dict_copy = log_item.pop('alert_dict', None)
+                    log_obj = DNSLog(**log_item)
+                    db.session.add(log_obj)
+                    db.session.commit()
+                    if alert_dict_copy:
+                        alert_obj = SecurityAlert(
+                            alert_id=alert_dict_copy['alert_id'],
+                            log_id=log_obj.id,
+                            timestamp=alert_dict_copy['timestamp'],
+                            severity=alert_dict_copy['severity'],
+                            domain=alert_dict_copy['domain'],
+                            client_ip=alert_dict_copy['client_ip'],
+                            alert_type=alert_dict_copy['alert_type'],
+                            description=alert_dict_copy['description'],
+                            status=alert_dict_copy['status']
+                        )
+                        db.session.add(alert_obj)
+                        db.session.commit()
+                    device_tracker.flush_devices_to_db(self.app)
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"[DNSSniffer] Simulation DB insert error: {e}")
+        else:
+            try:
+                self.log_queue.put_nowait(log_payload)
+            except queue.Full:
+                pass
             
         return status, alert_dict
 

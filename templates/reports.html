@@ -8,9 +8,9 @@
 <!-- Top Filter Bar -->
 <div class="toolbar" style="background: var(--bg-surface); padding: 14px 18px; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 24px;">
   <div class="toolbar-left">
-    <input type="date" class="filter-select" id="rep-date-from">
+    <input type="date" class="filter-select" id="rep-date-from" onchange="fetchReports()">
     <span style="color: var(--text-muted); font-size: 12px;">to</span>
-    <input type="date" class="filter-select" id="rep-date-to">
+    <input type="date" class="filter-select" id="rep-date-to" onchange="fetchReports()">
 
     <select class="filter-select" id="rep-device-filter" onchange="fetchReports()">
       <option value="ALL">All Devices</option>

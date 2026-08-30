@@ -8,6 +8,13 @@ let webSearchTimeout = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   fetchWebsiteActivity(1);
+  // Auto-refresh every 3 seconds if on page 1 and no search query
+  setInterval(() => {
+    const search = document.getElementById('web-search-input').value.trim();
+    if (currentWebPage === 1 && !search) {
+      fetchWebsiteActivity(1, true);
+    }
+  }, 3000);
 });
 
 function debounceWebSearch() {
@@ -17,7 +24,7 @@ function debounceWebSearch() {
   }, 350);
 }
 
-async function fetchWebsiteActivity(page = 1) {
+async function fetchWebsiteActivity(page = 1, isBackground = false) {
   currentWebPage = page;
   const search = document.getElementById('web-search-input').value.trim();
   const status = document.getElementById('web-status-filter').value;
@@ -40,9 +47,18 @@ async function fetchWebsiteActivity(page = 1) {
         const timeStr = act.time || (act.timestamp ? act.timestamp.split(' ')[1] : '-');
         const iconHtml = getDomainIcon(act.domain);
         const badgeHtml = getStatusBadge(act.status);
-        const typeIcon = (act.device_type || '').toLowerCase().includes('android')
-          ? '<i class="fa-brands fa-android" style="color:#10B981"></i> Android'
-          : '<i class="fa-brands fa-windows" style="color:#00A4EF"></i> Windows';
+        
+        let typeIcon = '<i class="fa-solid fa-desktop" style="color:#2563EB"></i> Workstation';
+        const dtype = (act.device_type || '').toLowerCase();
+        if (dtype.includes('android') || dtype.includes('mobile')) {
+          typeIcon = '<i class="fa-brands fa-android" style="color:#10B981"></i> Android';
+        } else if (dtype.includes('apple') || dtype.includes('ios') || dtype.includes('mac')) {
+          typeIcon = '<i class="fa-brands fa-apple" style="color:#64748B"></i> Apple';
+        } else if (dtype.includes('windows')) {
+          typeIcon = '<i class="fa-brands fa-windows" style="color:#00A4EF"></i> Windows';
+        } else {
+          typeIcon = '<i class="fa-solid fa-network-wired" style="color:#64748B"></i> ' + (act.device_type || 'Host');
+        }
 
         return `
           <tr>
@@ -66,7 +82,7 @@ async function fetchWebsiteActivity(page = 1) {
       tbody.innerHTML = `
         <tr>
           <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 35px;">
-            No website activity recorded.
+            No website activity recorded yet. Run DNS queries to see live activity.
           </td>
         </tr>
       `;
@@ -74,7 +90,7 @@ async function fetchWebsiteActivity(page = 1) {
       document.getElementById('web-pagination-controls').innerHTML = '';
     }
   } catch (err) {
-    console.error('Error fetching website activity:', err);
+    if (!isBackground) console.error('Error fetching website activity:', err);
   }
 }
 

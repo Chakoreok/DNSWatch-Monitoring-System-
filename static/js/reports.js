@@ -6,24 +6,66 @@ let queriesChart = null;
 let statusDonutChart = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Set default dates (last 7 days)
+  // Set default dates (today)
   const today = new Date();
   const prior = new Date(today);
-  prior.setDate(prior.getDate() - 7);
+  prior.setDate(prior.getDate() - 6);
 
-  document.getElementById('rep-date-to').value = today.toISOString().split('T')[0];
-  document.getElementById('rep-date-from').value = prior.toISOString().split('T')[0];
+  const formatIsoDate = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
+  document.getElementById('rep-date-from').value = formatIsoDate(prior);
+  document.getElementById('rep-date-to').value = formatIsoDate(today);
+
+  populateDeviceFilter();
   fetchReports();
 });
 
+async function populateDeviceFilter() {
+  try {
+    const res = await fetch('/api/devices');
+    const data = await res.json();
+    if (data.success && data.devices) {
+      const select = document.getElementById('rep-device-filter');
+      const currentVal = select.value;
+      
+      let html = '<option value="ALL">All Devices</option>';
+      data.devices.forEach(dev => {
+        const ip = dev.ip_address || dev.client_ip;
+        const name = dev.device_name || ip;
+        html += `<option value="${ip}">${name} (${ip})</option>`;
+      });
+      select.innerHTML = html;
+      select.value = currentVal || 'ALL';
+    }
+  } catch (err) {
+    console.error('Error loading devices for report filter:', err);
+  }
+}
+
 async function fetchReports() {
+  const dateFrom = document.getElementById('rep-date-from').value;
+  const dateTo = document.getElementById('rep-date-to').value;
   const device = document.getElementById('rep-device-filter').value;
   const status = document.getElementById('rep-status-filter').value;
 
   const url = new URL('/api/reports/summary', window.location.origin);
+  if (dateFrom) url.searchParams.set('date_from', dateFrom);
+  if (dateTo) url.searchParams.set('date_to', dateTo);
   if (device && device !== 'ALL') url.searchParams.set('device', device);
   if (status && status !== 'ALL') url.searchParams.set('status', status);
+
+  // Update CSV Export link with current filters
+  const exportUrl = new URL('/api/reports/export', window.location.origin);
+  if (dateFrom) exportUrl.searchParams.set('date_from', dateFrom);
+  if (dateTo) exportUrl.searchParams.set('date_to', dateTo);
+  if (device && device !== 'ALL') exportUrl.searchParams.set('device', device);
+  if (status && status !== 'ALL') exportUrl.searchParams.set('status', status);
+  document.getElementById('btn-export-csv').href = exportUrl.toString();
 
   try {
     const res = await fetch(url);
@@ -80,18 +122,30 @@ function renderQueriesChart(labels, values) {
         tension: 0.35,
         borderWidth: 2,
         pointBackgroundColor: '#2563EB',
-        pointRadius: 4
+        pointRadius: 4,
+        pointHoverRadius: 6
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` Queries: ${ctx.parsed.y}`
+          }
+        }
+      },
       scales: {
         y: {
           beginAtZero: true,
-          grid: { color: '#F1F5F9' },
-          ticks: { font: { size: 11 } }
+          ticks: {
+            stepSize: 1,
+            precision: 0,
+            font: { size: 11 }
+          },
+          grid: { color: '#F1F5F9' }
         },
         x: {
           grid: { display: false },
@@ -182,7 +236,7 @@ function renderAlertsSummaryTable(alerts) {
       <tr>
         <td><span class="${sevClass}">${a.severity}</span></td>
         <td style="font-weight: 600;">${a.alerts}</td>
-        <td style="text-align: right; color: var(--success); font-size: 11.5px; font-weight: 600;">${a.trend}</td>
+        <td style="text-align: right; color: var(--text-muted); font-size: 11.5px; font-weight: 500;">${a.trend}</td>
       </tr>
     `;
   }).join('');
