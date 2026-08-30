@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}DNSWatch - Devices{% endblock %}
+{% block header_title %}Devices{% endblock %}
+{% block header_subtitle %}List of devices connected to the network and their DNS activity.{% endblock %}
+
+{% block content %}
+<!-- Devices Stat Cards -->
+<div class="grid-4">
+  <div class="stat-card">
+    <div class="stat-icon blue">
+      <i class="fa-solid fa-laptop"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label">Total Devices</div>
+      <div class="stat-value" id="dev-cnt-total">0</div>
+      <div class="stat-subtext">Active devices in the network</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon green">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label">Active Devices</div>
+      <div class="stat-value" id="dev-cnt-active">0</div>
+      <div class="stat-subtext up">Currently active</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon amber">
+      <i class="fa-solid fa-power-off"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label">Inactive Devices</div>
+      <div class="stat-value" id="dev-cnt-inactive">0</div>
+      <div class="stat-subtext">Not seen recently</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon purple">
+      <i class="fa-solid fa-chart-simple"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label">Total DNS Queries</div>
+      <div class="stat-value" id="dev-cnt-queries">0</div>
+      <div class="stat-subtext">From all devices</div>
+    </div>
+  </div>
+</div>
+
+<!-- Devices Table Card -->
+<div class="card">
+  <div class="card-body">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="devices-search-input" placeholder="Search device name, IP or MAC address..." oninput="debounceDevicesSearch()">
+        </div>
+
+        <select class="filter-select" id="devices-status-filter" onchange="fetchDevices()">
+          <option value="ALL">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
+
+      <div class="toolbar-right">
+        <button class="btn btn-outline" onclick="fetchDevices()">
+          <i class="fa-solid fa-rotate-right"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive">
+      <table class="custom-table" id="table-devices">
+        <thead>
+          <tr>
+            <th>Device Name</th>
+            <th>IP Address</th>
+            <th>MAC Address</th>
+            <th>Device Type</th>
+            <th>DNS Queries</th>
+            <th>Last Seen</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="devices-tbody">
+          <tr>
+            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 40px;">
+              <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px;"></i>
+              <div>Loading observed client devices...</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-container">
+      <div id="devices-counter-info">Showing 0 devices</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/devices.js') }}"></script>
+{% endblock %}

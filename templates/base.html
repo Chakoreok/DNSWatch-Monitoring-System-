@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}DNSWatch: Real-Time DNS Monitoring & Alert System{% endblock %}</title>
+  
+  <!-- Modern Font & Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- Chart.js for Reports & Dashboard visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="{{ url_for('views.dashboard_page') }}" class="brand-logo">
+          <div class="brand-logo-icon">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div>
+            <div class="brand-title">DNSWatch</div>
+            <div class="brand-subtitle">DNS SECURITY MONITORING SYSTEM</div>
+          </div>
+        </a>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <a href="{{ url_for('views.dashboard_page') }}" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('views.website_activity_page') }}" class="nav-link {% if active_page == 'website-activity' %}active{% endif %}">
+          <i class="fa-solid fa-globe"></i>
+          <span>Website Activity</span>
+        </a>
+        <a href="{{ url_for('views.devices_page') }}" class="nav-link {% if active_page == 'devices' %}active{% endif %}">
+          <i class="fa-solid fa-laptop"></i>
+          <span>Devices</span>
+        </a>
+        <a href="{{ url_for('views.dns_logs_page') }}" class="nav-link {% if active_page == 'dns-logs' %}active{% endif %}">
+          <i class="fa-solid fa-network-wired"></i>
+          <span>DNS / Network Logs</span>
+        </a>
+        <a href="{{ url_for('views.security_alerts_page') }}" class="nav-link {% if active_page == 'security-alerts' %}active{% endif %}">
+          <i class="fa-solid fa-bell"></i>
+          <span>Security Alerts</span>
+        </a>
+        <a href="{{ url_for('views.threat_detection_page') }}" class="nav-link {% if active_page == 'threat-detection' %}active{% endif %}">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Threat Detection</span>
+        </a>
+        <a href="{{ url_for('views.reports_page') }}" class="nav-link {% if active_page == 'reports' %}active{% endif %}">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Reports</span>
+        </a>
+        <a href="{{ url_for('views.settings_page') }}" class="nav-link {% if active_page == 'settings' %}active{% endif %}">
+          <i class="fa-solid fa-gear"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <div class="monitoring-widget">
+          <div class="status-indicator">
+            <span class="status-dot {% if monitoring.is_running %}active{% endif %}" id="sidebar-status-dot"></span>
+            <span id="sidebar-status-text">{% if monitoring.is_running %}Monitoring Active{% else %}Monitoring Inactive{% endif %}</span>
+          </div>
+          <div class="started-at-text" id="sidebar-started-at">
+            {% if monitoring.is_running %}Started at {{ monitoring.started_at }}{% else %}Ready to capture{% endif %}
+          </div>
+          <button class="btn-monitoring-toggle {% if monitoring.is_running %}btn-stop{% else %}btn-start{% endif %}" id="btn-toggle-monitoring" onclick="toggleGlobalMonitoring()">
+            {% if monitoring.is_running %}
+              <i class="fa-solid fa-stop"></i> <span>Stop Monitoring</span>
+            {% else %}
+              <i class="fa-solid fa-play"></i> <span>Start Monitoring</span>
+            {% endif %}
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <button class="menu-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+          <div class="header-title-group">
+            <h1>{% block header_title %}Dashboard{% endblock %}</h1>
+            <p>{% block header_subtitle %}Real-time overview of DNS activity and security status.{% endblock %}</p>
+          </div>
+        </div>
+        
+        <div class="header-right">
+          <div class="live-badge" id="header-status-badge">
+            <span class="status-dot {% if monitoring.is_running %}active{% endif %}" id="header-status-dot"></span>
+            <span id="header-status-text">{% if monitoring.is_running %}Monitoring Active{% else %}Monitoring Inactive{% endif %}</span>
+          </div>
+          
+          <a href="{{ url_for('views.security_alerts_page') }}" class="notification-btn" title="View Alerts">
+            <i class="fa-regular fa-bell"></i>
+            <span class="notification-badge" id="header-alert-count">0</span>
+          </a>
+          
+          <div class="user-profile" onclick="window.location.href='{{ url_for('views.settings_page') }}'">
+            <div class="user-avatar">
+              <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <div class="user-info">
+              <div class="user-name">{% if current_user.is_authenticated %}{{ current_user.full_name or current_user.username }}{% else %}Administrator{% endif %}</div>
+              <div class="user-role">{% if current_user.is_authenticated %}{{ current_user.role.name }}{% else %}admin{% endif %}</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Body -->
+      <main class="content-body">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <!-- Global Application Scripts -->
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

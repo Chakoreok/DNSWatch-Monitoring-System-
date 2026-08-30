@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DNSWatch: A Real-Time DNS Monitoring & Alert System</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    .landing-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 48px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .landing-nav {
+      display: flex;
+      gap: 28px;
+    }
+    .landing-nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 500;
+    }
+    .landing-nav a:hover {
+      color: var(--primary);
+    }
+    .hero-section {
+      padding: 80px 48px 60px;
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    .hero-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1.15;
+      color: #0f172a;
+      margin-bottom: 18px;
+    }
+    .hero-title span {
+      color: #10b981;
+    }
+    .hero-subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 18px;
+      max-width: 1200px;
+      margin: 40px auto 80px;
+      padding: 0 48px;
+    }
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px 16px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .feature-card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      margin: 0 auto 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+    .feature-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .cta-banner {
+      max-width: 1200px;
+      margin: 0 auto 60px;
+      padding: 36px 48px;
+      background: #0f172a;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body style="display: block; background: #f8fafc;">
+  <!-- Header -->
+  <header class="landing-header">
+    <a href="/" class="brand-logo" style="color: #0f172a;">
+      <div class="brand-logo-icon">
+        <i class="fa-solid fa-shield-halved"></i>
+      </div>
+      <div>
+        <div class="brand-title" style="color: #0f172a;">DNSWatch</div>
+        <div class="brand-subtitle" style="color: #64748b;">DNS SECURITY MONITORING SYSTEM</div>
+      </div>
+    </a>
+
+    <nav class="landing-nav">
+      <a href="#home">Home</a>
+      <a href="#about">About</a>
+      <a href="#features">Features</a>
+      <a href="#benefits">Benefits</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#contact">Contact</a>
+    </nav>
+
+    <div style="display: flex; gap: 12px;">
+      <a href="{{ url_for('views.login_page') }}" class="btn btn-outline">
+        <i class="fa-regular fa-user"></i> Login
+      </a>
+      <a href="{{ url_for('views.dashboard_page') }}" class="btn btn-primary" style="background: #10b981;">
+        Get Started <i class="fa-solid fa-arrow-right"></i>
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section" id="home">
+    <div>
+      <h1 class="hero-title">
+        Monitor. Detect.<br><span>Protect.</span>
+      </h1>
+      <p class="hero-subtitle">
+        Real-time DNS monitoring and threat detection for a safer network. DNSWatch captures DNS queries with Scapy, detects malicious domains and frequency bursts, and protects network assets.
+      </p>
+      <div class="hero-actions">
+        <a href="{{ url_for('views.dashboard_page') }}" class="btn btn-primary" style="background: #10b981; padding: 12px 24px; font-size: 14px;">
+          <i class="fa-solid fa-gauge-high"></i> Go to Dashboard
+        </a>
+        <a href="{{ url_for('views.security_alerts_page') }}" class="btn btn-outline" style="padding: 12px 24px; font-size: 14px;">
+          <i class="fa-solid fa-bell"></i> View Security Alerts
+        </a>
+      </div>
+    </div>
+
+    <!-- Preview Card Graphic -->
+    <div style="background: #0f172a; padding: 24px; border-radius: 14px; box-shadow: var(--shadow-lg); color: #ffffff;">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 16px;">
+        <div style="font-weight: 700; font-size: 13px;"><i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> DNSWatch Real-Time Feed</div>
+        <span class="badge badge-safe">Active Sniffer</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; font-family: monospace;">
+        <div style="display: flex; justify-content: space-between; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+          <span>192.168.254.108</span>
+          <span style="color: #60a5fa;">google.com</span>
+          <span style="color: #10b981;">SAFE</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 6px 10px; background: rgba(239,68,68,0.15); border-radius: 4px;">
+          <span>192.168.254.108</span>
+          <span style="color: #fca5a5;">malicious-site.net</span>
+          <span style="color: #ef4444; font-weight: bold;">SUSPICIOUS</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+          <span>192.168.254.108</span>
+          <span style="color: #60a5fa;">youtube.com</span>
+          <span style="color: #10b981;">SAFE</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <div style="text-align: center; margin-top: 20px;" id="features">
+    <h3 style="font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 700;">Powerful Features for Better DNS Security</h3>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background: #eff6ff; color: #2563eb;">
+        <i class="fa-solid fa-network-wired"></i>
+      </div>
+      <h4>Real-time Monitoring</h4>
+      <p>Direct Scapy packet capture on port 53 without external dependencies.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background: #def7ec; color: #03543f;">
+        <i class="fa-solid fa-shield"></i>
+      </div>
+      <h4>Threat Detection</h4>
+      <p>3-Tier detection: Malicious lists, basic domain rules, and frequency limits.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background: #f1f5f9; color: #475569;">
+        <i class="fa-solid fa-list-check"></i>
+      </div>
+      <h4>Detailed Logs</h4>
+      <p>Complete DNS activity logs stored securely in MySQL database.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background: #fef3c7; color: #92400e;">
+        <i class="fa-solid fa-bell"></i>
+      </div>
+      <h4>Security Alerts</h4>
+      <p>Instant alerts generated when suspicious queries or floods are detected.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background: #fee2e2; color: #991b1b;">
+        <i class="fa-solid fa-bug"></i>
+      </div>
+      <h4>Malicious Domain List</h4>
+      <p>Manage and maintain known malicious domains dynamically.</p>
+    </div>
+  </div>
+
+  <!-- CTA Banner -->
+  <div class="cta-banner">
+    <div>
+      <h3 style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 6px;">Strengthen Your Network Security Today</h3>
+      <p style="font-size: 13.5px; color: #94a3b8;">DNSWatch helps you stay ahead of threats and keep your network safe.</p>
+    </div>
+    <a href="{{ url_for('views.login_page') }}" class="btn btn-primary" style="background: #10b981; padding: 12px 24px; font-size: 14px;">
+      <i class="fa-solid fa-right-to-bracket"></i> Login to Dashboard
+    </a>
+  </div>
+</body>
+</html>

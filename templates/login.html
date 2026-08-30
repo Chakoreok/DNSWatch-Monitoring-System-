@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DNSWatch - Login</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    .login-wrapper {
+      display: flex;
+      width: 100vw;
+      min-height: 100vh;
+    }
+    .login-brand-panel {
+      width: 42%;
+      background-color: #0f172a;
+      color: #ffffff;
+      padding: 60px 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .login-form-panel {
+      flex: 1;
+      background-color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 440px;
+    }
+    .lock-icon-circle {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #def7ec;
+      color: #10b981;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin: 0 auto 16px;
+    }
+    .feature-point {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .feature-point-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #10b981;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body style="display: block; background: #ffffff;">
+  <div class="login-wrapper">
+    <!-- Left Dark Branding Panel -->
+    <div class="login-brand-panel">
+      <div>
+        <div class="brand-logo" style="margin-bottom: 48px;">
+          <div class="brand-logo-icon">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div>
+            <div class="brand-title">DNSWatch</div>
+            <div class="brand-subtitle">DNS SECURITY MONITORING SYSTEM</div>
+          </div>
+        </div>
+
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 12px;">
+          Monitor. Detect.<br><span style="color: #10b981;">Protect.</span>
+        </h2>
+        <p style="color: #94a3b8; font-size: 14px; line-height: 1.5; margin-bottom: 40px;">
+          Real-time DNS monitoring and threat detection for a safer and more secure network.
+        </p>
+
+        <div class="feature-point">
+          <div class="feature-point-icon"><i class="fa-solid fa-bolt"></i></div>
+          <div>
+            <div style="font-weight: 600; font-size: 13.5px;">Real-time Monitoring</div>
+            <div style="color: #94a3b8; font-size: 12px;">Capture and monitor DNS requests in real-time.</div>
+          </div>
+        </div>
+
+        <div class="feature-point">
+          <div class="feature-point-icon"><i class="fa-solid fa-shield"></i></div>
+          <div>
+            <div style="font-weight: 600; font-size: 13.5px;">Threat Detection</div>
+            <div style="color: #94a3b8; font-size: 12px;">Detect malicious domains and suspicious activities.</div>
+          </div>
+        </div>
+
+        <div class="feature-point">
+          <div class="feature-point-icon"><i class="fa-solid fa-list"></i></div>
+          <div>
+            <div style="font-weight: 600; font-size: 13.5px;">Detailed Logs</div>
+            <div style="color: #94a3b8; font-size: 12px;">Store and review DNS activity logs with complete details.</div>
+          </div>
+        </div>
+
+        <div class="feature-point">
+          <div class="feature-point-icon"><i class="fa-solid fa-bell"></i></div>
+          <div>
+            <div style="font-weight: 600; font-size: 13.5px;">Instant Alerts</div>
+            <div style="color: #94a3b8; font-size: 12px;">Get notified of high-risk threats and malicious domains.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 11px; color: #64748b;">
+        © 2026 DNSWatch. All rights reserved.
+      </div>
+    </div>
+
+    <!-- Right Login Form Panel -->
+    <div class="login-form-panel">
+      <div class="login-card">
+        <div style="text-align: center; margin-bottom: 28px;">
+          <div class="lock-icon-circle">
+            <i class="fa-solid fa-lock"></i>
+          </div>
+          <h2 style="font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 700; color: #0f172a;">Welcome Back!</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Login to access your DNSWatch dashboard</p>
+        </div>
+
+        <div id="login-error-alert" style="display: none; background: #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 6px; font-size: 12.5px; margin-bottom: 16px; border: 1px solid #fca5a5;">
+          <!-- Injected by JS -->
+        </div>
+
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label">Email or Username</label>
+            <div class="search-box" style="width: 100%;">
+              <i class="fa-regular fa-envelope"></i>
+              <input type="text" id="login-email" placeholder="admin@dnswatch.local or admin" value="admin" required>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label">Password</label>
+            <div class="search-box" style="width: 100%;">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="login-password" placeholder="Enter your password" value="admin123" required>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+            <a href="#" style="font-size: 12px; color: #10b981; text-decoration: none; font-weight: 500;">Forgot Password?</a>
+          </div>
+
+          <button type="submit" class="btn btn-primary" id="btn-login" style="width: 100%; justify-content: center; background: #10b981; padding: 11px; font-size: 13.5px; font-weight: 600;">
+            <i class="fa-solid fa-right-to-bracket"></i> Login to Dashboard
+          </button>
+        </form>
+
+        <div style="text-align: center; margin: 20px 0; color: var(--text-light); font-size: 12px; position: relative;">
+          <span style="background: #ffffff; padding: 0 12px; position: relative; z-index: 1;">OR</span>
+          <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--border-color); z-index: 0;"></div>
+        </div>
+
+        <button class="btn btn-outline" style="width: 100%; justify-content: center; padding: 10px; font-size: 13px;" onclick="quickDemoLogin()">
+          <i class="fa-brands fa-google" style="color: #EA4335;"></i> Login with Google / Quick Demo
+        </button>
+
+        <div style="text-align: center; margin-top: 24px; font-size: 12px; color: var(--text-muted);">
+          Don't have an account? <a href="#" style="color: #10b981; text-decoration: none; font-weight: 600;">Sign up here</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-login');
+      const errBox = document.getElementById('login-error-alert');
+      errBox.style.display = 'none';
+      btn.disabled = true;
+
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = data.redirect || '/dashboard';
+        } else {
+          errBox.textContent = data.message || 'Invalid credentials';
+          errBox.style.display = 'block';
+        }
+      } catch (err) {
+        errBox.textContent = 'Connection error: ' + err.message;
+        errBox.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function quickDemoLogin() {
+      document.getElementById('login-email').value = 'admin';
+      document.getElementById('login-password').value = 'admin123';
+      document.getElementById('login-form').dispatchEvent(new Event('submit'));
+    }
+  </script>
+</body>
+</html>

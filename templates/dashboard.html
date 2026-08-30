@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}DNSWatch - Dashboard{% endblock %}
+{% block header_title %}Dashboard{% endblock %}
+{% block header_subtitle %}Real-time overview of DNS activity and security status.{% endblock %}
+
+{% block content %}
+<!-- Top Metrics Row -->
+<div class="grid-3">
+  <div class="stat-card">
+    <div class="stat-icon blue">
+      <i class="fa-solid fa-server"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label">Total DNS Queries</div>
+      <div class="stat-value" id="dash-total-queries">0</div>
+      <div class="stat-subtext up">
+        <i class="fa-solid fa-arrow-trend-up"></i> <span>Live network capture</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon amber">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label">Suspicious Requests</div>
+      <div class="stat-value" id="dash-suspicious-queries">0</div>
+      <div class="stat-subtext up">
+        <i class="fa-solid fa-triangle-exclamation"></i> <span>Requires attention</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon red">
+      <i class="fa-solid fa-ban"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label">Blocked Requests</div>
+      <div class="stat-value" id="dash-blocked-queries">0</div>
+      <div class="stat-subtext down">
+        <i class="fa-solid fa-shield"></i> <span>Blocked by security rules</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard Split View -->
+<div class="dashboard-split">
+  <!-- Left Side: Live DNS Requests -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <h3>Live DNS Requests</h3>
+        <p>Real-time DNS queries being captured in the network.</p>
+      </div>
+      <a href="{{ url_for('views.dns_logs_page') }}" class="btn btn-outline btn-sm">
+        View All Logs <i class="fa-solid fa-arrow-right"></i>
+      </a>
+    </div>
+
+    <div class="table-responsive">
+      <table class="custom-table" id="table-live-dns">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Client IP</th>
+            <th>Domain / Query</th>
+            <th>Query Type</th>
+            <th>Response IP</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="dash-dns-tbody">
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
+              <i class="fa-solid fa-spinner fa-spin" style="font-size: 20px; margin-bottom: 8px;"></i>
+              <div>Waiting for captured DNS traffic...</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-container">
+      <div id="dash-dns-counter">Showing 0 recent entries</div>
+      <div class="toolbar-right">
+        <button class="btn btn-outline btn-sm" onclick="refreshDashboard()" title="Refresh Data">
+          <i class="fa-solid fa-rotate-right"></i> Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Side: Security Alerts + System Status -->
+  <div style="display: flex; flex-direction: column; gap: 24px;">
+    <!-- Recent Alerts Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <h3>Recent Security Alerts</h3>
+        </div>
+        <a href="{{ url_for('views.security_alerts_page') }}" class="btn btn-outline btn-sm">
+          View All Alerts
+        </a>
+      </div>
+      <div class="card-body">
+        <div class="recent-alerts-list" id="dash-alerts-container">
+          <div style="text-align: center; color: var(--text-muted); padding: 20px 0;">
+            No recent alerts triggered.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Status Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <h3>System Status</h3>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="system-status-list">
+          <div class="status-row">
+            <span class="status-row-label">Monitoring Status</span>
+            <span class="status-row-value" id="status-mon-label">
+              <span class="badge badge-safe" id="status-mon-badge">Active</span>
+            </span>
+          </div>
+          <div class="status-row">
+            <span class="status-row-label">Packets Captured</span>
+            <span class="status-row-value" id="status-packets-count">0</span>
+          </div>
+          <div class="status-row">
+            <span class="status-row-label">Database Status</span>
+            <span class="status-row-value" style="color: var(--success);"><i class="fa-solid fa-circle-check"></i> Connected</span>
+          </div>
+          <div class="status-row">
+            <span class="status-row-label">Last Packet Captured</span>
+            <span class="status-row-value" id="status-last-packet">None</span>
+          </div>
+          <div class="status-row">
+            <span class="status-row-label">System Uptime</span>
+            <span class="status-row-value" id="status-uptime">00:00:00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

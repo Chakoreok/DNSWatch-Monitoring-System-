@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}DNSWatch - Settings{% endblock %}
+{% block header_title %}Settings{% endblock %}
+{% block header_subtitle %}Configure network capture interfaces, system parameters, and user accounts.{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+  <!-- Network Interface & Capture Settings -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <h3>Network Capture Configuration</h3>
+        <p>Select interface for Scapy packet sniffing.</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="form-label">Capture Network Interface</label>
+        <select class="form-control" id="settings-iface-select">
+          <option value="">Auto-Detect / All Interfaces</option>
+        </select>
+        <small style="color: var(--text-muted); font-size: 11px;">Scapy will sniff port 53 DNS traffic on this interface.</small>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">BPF Capture Filter</label>
+        <input type="text" class="form-control" id="settings-bpf-filter" value="udp port 53 or tcp port 53" readonly>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Real-Time Processing Mode</label>
+        <div style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; color: var(--text-main);">
+          <div style="font-weight: 600; margin-bottom: 4px; color: var(--success);"><i class="fa-solid fa-bolt"></i> Fast In-Memory Evaluation Active</div>
+          DNS queries are evaluated locally against cached rules without external API latency.
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="saveCaptureSettings()">
+        <i class="fa-solid fa-floppy-disk"></i> Apply Settings
+      </button>
+    </div>
+  </div>
+
+  <!-- System Information & Database Status -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <h3>System & Database Diagnostics</h3>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="system-status-list">
+        <div class="status-row">
+          <span class="status-row-label">Database Server</span>
+          <span class="status-row-value">MySQL (127.0.0.1:3306)</span>
+        </div>
+        <div class="status-row">
+          <span class="status-row-label">Database Name</span>
+          <span class="status-row-value">dnswatch_db</span>
+        </div>
+        <div class="status-row">
+          <span class="status-row-label">Capture Engine</span>
+          <span class="status-row-value">Scapy 2.7.0 / Npcap</span>
+        </div>
+        <div class="status-row">
+          <span class="status-row-label">Detection Modules</span>
+          <span class="status-row-value">3 Modules (Blacklist, Rules, Frequency)</span>
+        </div>
+        <div class="status-row">
+          <span class="status-row-label">IP Geolocation</span>
+          <span class="status-row-value" style="color: var(--text-muted);"><i class="fa-solid fa-ban"></i> Disabled (Strict Local Requirement)</span>
+        </div>
+        <div class="status-row">
+          <span class="status-row-label">External Threat APIs</span>
+          <span class="status-row-value" style="color: var(--text-muted);"><i class="fa-solid fa-ban"></i> None (100% Local Processing)</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn btn-outline" style="color: var(--danger); border-color: #fca5a5;" onclick="clearAllData()">
+          <i class="fa-solid fa-trash-can"></i> Clear All Activity Data
+        </button>
+        <a href="/api/auth/logout" class="btn btn-outline" style="color: var(--text-muted);">
+          <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- User Accounts Section -->
+<div class="card" style="margin-top: 24px;">
+  <div class="card-header">
+    <div class="card-header-left">
+      <h3>Authorized Users & Roles</h3>
+      <p>Role-based system access (Administrator, Security Analyst, Viewer).</p>
+    </div>
+    <button class="btn btn-primary" onclick="openCreateUserModal()">
+      <i class="fa-solid fa-user-plus"></i> Create User
+    </button>
+  </div>
+  <div class="table-responsive">
+    <table class="custom-table" id="table-users">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Full Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Created At</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody">
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
+            Loading user accounts...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Create User Modal -->
+<div class="modal-backdrop" id="modal-create-user">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">Create New User Account</div>
+      <button class="modal-close" onclick="closeModal('modal-create-user')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-create-user" onsubmit="submitCreateUser(event)">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input type="text" class="form-control" id="input-new-username" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" class="form-control" id="input-new-fullname" placeholder="e.g. John Doe" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" class="form-control" id="input-new-email" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-control" id="input-new-password" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assigned Role</label>
+          <select class="form-control" id="input-new-role">
+            <option value="1">Administrator (Full Access)</option>
+            <option value="2" selected>Security Analyst (Monitor & Investigate)</option>
+            <option value="3">Viewer (Read-Only)</option>
+          </select>
+        </div>
+        <div class="modal-footer" style="padding: 14px 0 0; margin-top: 20px;">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-create-user')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}

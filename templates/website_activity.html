@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}DNSWatch - Website Activity{% endblock %}
+{% block header_title %}Website Activity{% endblock %}
+{% block header_subtitle %}List of websites accessed by users in the network.{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="web-search-input" placeholder="Search domain or client..." oninput="debounceWebSearch()">
+        </div>
+
+        <select class="filter-select" id="web-status-filter" onchange="fetchWebsiteActivity(1)">
+          <option value="ALL">All Status</option>
+          <option value="SAFE">SAFE</option>
+          <option value="SUSPICIOUS">SUSPICIOUS</option>
+          <option value="BLOCKED">BLOCKED</option>
+        </select>
+
+        <input type="date" class="filter-select" id="web-date-filter" onchange="fetchWebsiteActivity(1)">
+      </div>
+
+      <div class="toolbar-right">
+        <button class="btn btn-outline" onclick="fetchWebsiteActivity(currentWebPage)">
+          <i class="fa-solid fa-rotate-right"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive">
+      <table class="custom-table" id="table-web-activity">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Domain</th>
+            <th>Client / Device</th>
+            <th>Client IP</th>
+            <th>Device Type</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="web-activity-tbody">
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">
+              <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px;"></i>
+              <div>Loading website activity...</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-container">
+      <div id="web-pagination-info">Showing 0 to 0 of 0 entries</div>
+      <div class="pagination-controls" id="web-pagination-controls"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/website_activity.js') }}"></script>
+{% endblock %}

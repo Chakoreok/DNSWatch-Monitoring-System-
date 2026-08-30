@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}DNSWatch - Reports{% endblock %}
+{% block header_title %}Reports{% endblock %}
+{% block header_subtitle %}View and analyze system activity and security reports.{% endblock %}
+
+{% block content %}
+<!-- Top Filter Bar -->
+<div class="toolbar" style="background: var(--bg-surface); padding: 14px 18px; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 24px;">
+  <div class="toolbar-left">
+    <input type="date" class="filter-select" id="rep-date-from">
+    <span style="color: var(--text-muted); font-size: 12px;">to</span>
+    <input type="date" class="filter-select" id="rep-date-to">
+
+    <select class="filter-select" id="rep-device-filter" onchange="fetchReports()">
+      <option value="ALL">All Devices</option>
+    </select>
+
+    <select class="filter-select" id="rep-status-filter" onchange="fetchReports()">
+      <option value="ALL">All Status</option>
+      <option value="SAFE">Safe Only</option>
+      <option value="SUSPICIOUS">Suspicious Only</option>
+      <option value="BLOCKED">Blocked Only</option>
+    </select>
+  </div>
+
+  <div class="toolbar-right">
+    <a href="/api/reports/export" class="btn btn-primary" id="btn-export-csv" download>
+      <i class="fa-solid fa-file-arrow-down"></i> Export Report (CSV)
+    </a>
+  </div>
+</div>
+
+<!-- 5 Stat Cards Grid -->
+<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px;">
+  <div class="stat-card" style="padding: 16px;">
+    <div class="stat-icon blue" style="width: 36px; height: 36px; font-size: 16px;">
+      <i class="fa-solid fa-server"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label" style="font-size: 11.5px;">Total DNS Queries</div>
+      <div class="stat-value" style="font-size: 20px;" id="rep-cnt-total">0</div>
+      <div class="stat-subtext up" style="font-size: 10px;">Activity logged</div>
+    </div>
+  </div>
+
+  <div class="stat-card" style="padding: 16px;">
+    <div class="stat-icon green" style="width: 36px; height: 36px; font-size: 16px;">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label" style="font-size: 11.5px;">Safe Requests</div>
+      <div class="stat-value" style="font-size: 20px; color: var(--success);" id="rep-cnt-safe">0</div>
+      <div class="stat-subtext" style="font-size: 10px;" id="rep-pct-safe">100% of total</div>
+    </div>
+  </div>
+
+  <div class="stat-card" style="padding: 16px;">
+    <div class="stat-icon amber" style="width: 36px; height: 36px; font-size: 16px;">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label" style="font-size: 11.5px;">Suspicious Requests</div>
+      <div class="stat-value" style="font-size: 20px; color: var(--warning);" id="rep-cnt-suspicious">0</div>
+      <div class="stat-subtext" style="font-size: 10px;" id="rep-pct-suspicious">0% of total</div>
+    </div>
+  </div>
+
+  <div class="stat-card" style="padding: 16px;">
+    <div class="stat-icon red" style="width: 36px; height: 36px; font-size: 16px;">
+      <i class="fa-solid fa-ban"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label" style="font-size: 11.5px;">Blocked Requests</div>
+      <div class="stat-value" style="font-size: 20px; color: var(--danger);" id="rep-cnt-blocked">0</div>
+      <div class="stat-subtext" style="font-size: 10px;" id="rep-pct-blocked">0% of total</div>
+    </div>
+  </div>
+
+  <div class="stat-card" style="padding: 16px;">
+    <div class="stat-icon purple" style="width: 36px; height: 36px; font-size: 16px;">
+      <i class="fa-solid fa-laptop"></i>
+    </div>
+    <div class="stat-content">
+      <div class="stat-label" style="font-size: 11.5px;">Active Devices</div>
+      <div class="stat-value" style="font-size: 20px;" id="rep-cnt-devices">0</div>
+      <div class="stat-subtext" style="font-size: 10px;">Monitored clients</div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Row (2:1 Grid) -->
+<div class="dashboard-split" style="margin-bottom: 24px;">
+  <!-- Line Chart: Queries Over Time -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <h3>DNS Queries Over Time</h3>
+      </div>
+      <span style="font-size: 11.5px; color: var(--text-muted); background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">Daily</span>
+    </div>
+    <div class="card-body">
+      <div style="height: 240px; position: relative;">
+        <canvas id="chart-queries-time"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Donut Chart: Requests by Status -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <h3>Requests by Status</h3>
+      </div>
+    </div>
+    <div class="card-body">
+      <div style="height: 240px; position: relative;">
+        <canvas id="chart-status-donut"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Summary Tables (Grid of 3) -->
+<div class="grid-3">
+  <!-- Top Queried Domains -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <h3>Top Queried Domains</h3>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th style="text-align: right;">Queries</th>
+          </tr>
+        </thead>
+        <tbody id="rep-top-domains-tbody">
+          <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 20px;">No data available</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="padding: 12px; text-align: center; border-top: 1px solid var(--border-color);">
+      <a href="{{ url_for('views.dns_logs_page') }}" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">View full report</a>
+    </div>
+  </div>
+
+  <!-- Top Devices by DNS Queries -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <h3>Top Devices by DNS Queries</h3>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>IP Address</th>
+            <th style="text-align: right;">Queries</th>
+          </tr>
+        </thead>
+        <tbody id="rep-top-devices-tbody">
+          <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">No data available</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="padding: 12px; text-align: center; border-top: 1px solid var(--border-color);">
+      <a href="{{ url_for('views.devices_page') }}" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">View full report</a>
+    </div>
+  </div>
+
+  <!-- Recent Security Alerts Summary -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <h3>Recent Security Alerts Summary</h3>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Alerts</th>
+            <th style="text-align: right;">Trend</th>
+          </tr>
+        </thead>
+        <tbody id="rep-alerts-summary-tbody">
+          <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">No data available</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="padding: 12px; text-align: center; border-top: 1px solid var(--border-color);">
+      <a href="{{ url_for('views.security_alerts_page') }}" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">View full report</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+{% endblock %}
