@@ -8,6 +8,18 @@ let searchTimeout = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   fetchLogs(1);
+  
+  // Auto-refresh when on page 1 and no search query
+  setInterval(() => {
+    const search = document.getElementById('logs-search-input').value.trim();
+    if (currentPage === 1 && !search && globalMonitoringActive) {
+      fetchLogs(1, true);
+    }
+  }, 2000);
+
+  document.addEventListener('monitoringStateChanged', () => {
+    fetchLogs(currentPage, true);
+  });
 });
 
 function debounceLogsSearch() {
@@ -17,7 +29,7 @@ function debounceLogsSearch() {
   }, 350);
 }
 
-async function fetchLogs(page = 1) {
+async function fetchLogs(page = 1, isBackground = false) {
   currentPage = page;
   const search = document.getElementById('logs-search-input').value.trim();
   const status = document.getElementById('logs-status-filter').value;
@@ -67,10 +79,14 @@ async function fetchLogs(page = 1) {
 
       renderPagination(data.pagination);
     } else {
+      const msg = globalMonitoringActive ?
+        'Waiting for DNS requests... No log entries match current filter.' :
+        'Monitoring is currently Inactive. Existing logs remain saved. Click <strong>Start Monitoring</strong> to capture live traffic.';
+        
       tbody.innerHTML = `
         <tr>
           <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 35px;">
-            No DNS log entries match your filter criteria.
+            ${msg}
           </td>
         </tr>
       `;
@@ -78,7 +94,7 @@ async function fetchLogs(page = 1) {
       document.getElementById('logs-pagination-controls').innerHTML = '';
     }
   } catch (err) {
-    console.error('Error fetching DNS logs:', err);
+    if (!isBackground) console.error('Error fetching DNS logs:', err);
   }
 }
 

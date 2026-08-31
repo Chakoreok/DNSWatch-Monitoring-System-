@@ -127,12 +127,14 @@
           <div class="status-row">
             <span class="status-row-label">Monitoring Status</span>
             <span class="status-row-value" id="status-mon-label">
-              <span class="badge badge-safe" id="status-mon-badge">Active</span>
+              <span class="badge {% if monitoring.is_running %}badge-safe{% endif %}" id="status-mon-badge" {% if not monitoring.is_running %}style="background: #f1f5f9; color: #64748b;"{% endif %}>
+                {% if monitoring.is_running %}Active{% else %}Inactive{% endif %}
+              </span>
             </span>
           </div>
           <div class="status-row">
             <span class="status-row-label">Packets Captured</span>
-            <span class="status-row-value" id="status-packets-count">0</span>
+            <span class="status-row-value" id="status-packets-count">{{ monitoring.total_queries or 0 }}</span>
           </div>
           <div class="status-row">
             <span class="status-row-label">Database Status</span>
@@ -140,11 +142,11 @@
           </div>
           <div class="status-row">
             <span class="status-row-label">Last Packet Captured</span>
-            <span class="status-row-value" id="status-last-packet">None</span>
+            <span class="status-row-value" id="status-last-packet">{{ monitoring.last_packet_time or 'None' }}</span>
           </div>
           <div class="status-row">
             <span class="status-row-label">System Uptime</span>
-            <span class="status-row-value" id="status-uptime">00:00:00</span>
+            <span class="status-row-value" id="status-uptime">{{ monitoring.uptime or '00:00:00' }}</span>
           </div>
         </div>
       </div>

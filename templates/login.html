@@ -146,7 +146,7 @@
             <label class="form-label">Email or Username</label>
             <div class="search-box" style="width: 100%;">
               <i class="fa-regular fa-envelope"></i>
-              <input type="text" id="login-email" placeholder="admin@dnswatch.local or admin" value="admin" required>
+              <input type="text" id="login-email" placeholder="Enter username or email" value="" required autocomplete="username">
             </div>
           </div>
 
@@ -154,7 +154,7 @@
             <label class="form-label">Password</label>
             <div class="search-box" style="width: 100%;">
               <i class="fa-solid fa-lock"></i>
-              <input type="password" id="login-password" placeholder="Enter your password" value="admin123" required>
+              <input type="password" id="login-password" placeholder="Enter your password" value="" required autocomplete="current-password">
             </div>
           </div>
 
@@ -167,17 +167,8 @@
           </button>
         </form>
 
-        <div style="text-align: center; margin: 20px 0; color: var(--text-light); font-size: 12px; position: relative;">
-          <span style="background: #ffffff; padding: 0 12px; position: relative; z-index: 1;">OR</span>
-          <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--border-color); z-index: 0;"></div>
-        </div>
-
-        <button class="btn btn-outline" style="width: 100%; justify-content: center; padding: 10px; font-size: 13px;" onclick="quickDemoLogin()">
-          <i class="fa-brands fa-google" style="color: #EA4335;"></i> Login with Google / Quick Demo
-        </button>
-
         <div style="text-align: center; margin-top: 24px; font-size: 12px; color: var(--text-muted);">
-          Don't have an account? <a href="#" style="color: #10b981; text-decoration: none; font-weight: 600;">Sign up here</a>
+          Protected System &bull; <span style="color: #64748b;">Authorized Access Only</span>
         </div>
       </div>
     </div>
@@ -185,26 +176,33 @@
 
   <script>
     async function handleLogin(e) {
-      e.preventDefault();
+      if (e) e.preventDefault();
       const btn = document.getElementById('btn-login');
       const errBox = document.getElementById('login-error-alert');
       errBox.style.display = 'none';
-      btn.disabled = true;
 
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
+
+      if (!email || !password) {
+        errBox.textContent = 'Username and password are required.';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
 
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ username: email, email: email, password: password })
         });
         const data = await res.json();
-        if (data.success) {
+        if (res.ok && data.success) {
           window.location.href = data.redirect || '/dashboard';
         } else {
-          errBox.textContent = data.message || 'Invalid credentials';
+          errBox.textContent = data.message || 'Invalid username or password.';
           errBox.style.display = 'block';
         }
       } catch (err) {
@@ -213,12 +211,6 @@
       } finally {
         btn.disabled = false;
       }
-    }
-
-    function quickDemoLogin() {
-      document.getElementById('login-email').value = 'admin';
-      document.getElementById('login-password').value = 'admin123';
-      document.getElementById('login-form').dispatchEvent(new Event('submit'));
     }
   </script>
 </body>

@@ -3,7 +3,14 @@ from database import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 
-class Role(db.Model):
+class BaseModel(db.Model):
+    __abstract__ = True
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
+class Role(BaseModel):
     __tablename__ = 'roles'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -21,7 +28,7 @@ class Role(db.Model):
         }
 
 
-class User(UserMixin, db.Model):
+class User(UserMixin, BaseModel):
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -63,7 +70,7 @@ class User(UserMixin, db.Model):
         }
 
 
-class MonitoringSession(db.Model):
+class MonitoringSession(BaseModel):
     __tablename__ = 'monitoring_sessions'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -97,7 +104,7 @@ class MonitoringSession(db.Model):
         }
 
 
-class DNSLog(db.Model):
+class DNSLog(BaseModel):
     __tablename__ = 'dns_logs'
     
     id = db.Column(db.BigInteger, primary_key=True)
@@ -136,7 +143,7 @@ class DNSLog(db.Model):
         }
 
 
-class SecurityAlert(db.Model):
+class SecurityAlert(BaseModel):
     __tablename__ = 'security_alerts'
     
     id = db.Column(db.BigInteger, primary_key=True)
@@ -171,7 +178,7 @@ class SecurityAlert(db.Model):
         }
 
 
-class MaliciousDomain(db.Model):
+class MaliciousDomain(BaseModel):
     __tablename__ = 'malicious_domains'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -198,7 +205,7 @@ class MaliciousDomain(db.Model):
         }
 
 
-class DetectionRule(db.Model):
+class DetectionRule(BaseModel):
     __tablename__ = 'detection_rules'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -230,7 +237,7 @@ class DetectionRule(db.Model):
         }
 
 
-class FrequencyRuleConfig(db.Model):
+class FrequencyRuleConfig(BaseModel):
     __tablename__ = 'frequency_rule_config'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -251,7 +258,7 @@ class FrequencyRuleConfig(db.Model):
         }
 
 
-class Device(db.Model):
+class Device(BaseModel):
     __tablename__ = 'devices'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -277,7 +284,7 @@ class Device(db.Model):
         }
 
 
-class WebsiteActivity(db.Model):
+class WebsiteActivity(BaseModel):
     __tablename__ = 'website_activity'
     
     id = db.Column(db.BigInteger, primary_key=True)

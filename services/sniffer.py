@@ -1,9 +1,11 @@
+# pyright: reportAttributeAccessIssue=false, reportGeneralTypeIssues=false, reportOptionalMemberAccess=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportMissingImports=false, reportMissingTypeStubs=false
+# type: ignore
 import time
 import queue
 import threading
 from datetime import datetime
 from collections import deque
-from scapy.all import sniff, conf, get_if_list, IP, IPv6, UDP, TCP, DNS, DNSQR, DNSRR
+from scapy.all import sniff, conf, get_if_list, IP, IPv6, UDP, TCP, Ether, DNS, DNSQR, DNSRR
 from database import db
 from models import MonitoringSession, DNSLog, SecurityAlert
 from services.detection_engine import detection_engine
@@ -19,6 +21,8 @@ DNS_QTYPE_MAP = {
     16: 'TXT',
     28: 'AAAA',
     33: 'SRV',
+    64: 'SVCB',
+    65: 'HTTPS',
     255: 'ANY'
 }
 
@@ -62,11 +66,11 @@ class DNSSnifferService:
             self.live_logs_buffer.clear()
             self.recent_alerts_buffer.clear()
             self.last_packet_time = None
+            self.current_session_id = None
             device_tracker.device_cache.clear()
 
     def get_auto_detected_interface(self):
         """Finds the most likely active physical interface (e.g. Wi-Fi / Ethernet with valid IPv4)."""
-        # 1. Prefer interface with non-local, non-APIPA, non-VirtualBox IPv4
         for iface in conf.ifaces.values():
             ip = getattr(iface, 'ip', '') or ''
             desc = (getattr(iface, 'description', '') or '').lower()
@@ -74,7 +78,6 @@ class DNSSnifferService:
             if ip and not ip.startswith('127.') and not ip.startswith('169.254.') and 'virtualbox' not in desc and 'virtualbox' not in name:
                 return iface
                 
-        # 2. Fallback to any active non-loopback IP
         for iface in conf.ifaces.values():
             ip = getattr(iface, 'ip', '') or ''
             if ip and not ip.startswith('127.') and not ip.startswith('169.254.'):
@@ -125,7 +128,6 @@ class DNSSnifferService:
             
             # Resolve interface
             if interface:
-                # Find matching iface object by name or description or id
                 matched = None
                 for iface in conf.ifaces.values():
                     if getattr(iface, 'name', '') == interface or getattr(iface, 'description', '') == interface or str(getattr(iface, 'index', '')) == str(interface):
@@ -150,7 +152,6 @@ class DNSSnifferService:
                 with self.app.app_context():
                     detection_engine.reload_cache()
                     
-                    # Create new monitoring session in DB
                     session_rec = MonitoringSession(
                         session_name=f"Capture-{self.start_timestamp.strftime('%Y%m%d-%H%M%S')}",
                         start_time=self.start_timestamp,
@@ -182,31 +183,45 @@ class DNSSnifferService:
             return True, f"Monitoring started successfully on {iface_display_name} (Session #{self.current_session_id})."
 
     def stop_monitoring(self):
-        """Gracefully signals Scapy and DB writer to stop."""
+        """Gracefully signals Scapy and DB writer to stop, waits for data flush."""
         with self._lock:
             if not self.is_running:
                 return False, "Monitoring is not currently active."
                 
             self.stop_event.set()
             self.is_running = False
+        
+        # Wait for the DB writer thread to drain all queued items (outside the lock)
+        if self.db_writer_thread and self.db_writer_thread.is_alive():
+            self.db_writer_thread.join(timeout=10)
             
-            # Update session in DB
-            if self.app and self.current_session_id:
-                try:
-                    with self.app.app_context():
-                        session_rec = MonitoringSession.query.get(self.current_session_id)
-                        if session_rec:
-                            session_rec.end_time = datetime.utcnow()
-                            session_rec.status = "STOPPED"
-                            session_rec.total_queries = self.total_captured
-                            session_rec.safe_queries = self.safe_count
-                            session_rec.suspicious_queries = self.suspicious_count
-                            session_rec.blocked_queries = self.blocked_count
-                            db.session.commit()
-                except Exception as e:
-                    print(f"[DNSSniffer] Error updating session on stop: {e}")
+        # Flush remaining device activity to DB
+        if self.app:
+            try:
+                device_tracker.flush_devices_to_db(self.app)
+            except Exception as e:
+                print(f"[DNSSniffer] Error flushing devices on stop: {e}")
+        
+        # Update session record with final counts
+        if self.app and self.current_session_id:
+            try:
+                with self.app.app_context():
+                    session_rec = MonitoringSession.query.get(self.current_session_id)
+                    if session_rec:
+                        session_rec.end_time = datetime.utcnow()
+                        session_rec.status = "STOPPED"
+                        session_rec.total_queries = self.total_captured
+                        session_rec.safe_queries = self.safe_count
+                        session_rec.suspicious_queries = self.suspicious_count
+                        session_rec.blocked_queries = self.blocked_count
+                        db.session.commit()
+            except Exception as e:
+                print(f"[DNSSniffer] Error updating session on stop: {e}")
+                
+        with self._lock:
+            self.current_session_id = None
                     
-            return True, "Monitoring stopped successfully."
+        return True, "Monitoring stopped successfully."
 
     def get_status(self):
         """Returns real-time status summary for UI and API."""
@@ -220,6 +235,26 @@ class DNSSnifferService:
             last_pkt_str = self.last_packet_time.strftime('%I:%M:%S %p') if self.last_packet_time else "None"
             started_at_str = self.start_timestamp.strftime('%b %d, %Y %I:%M %p') if self.start_timestamp else "Not started"
             
+            total_pkts = self.total_captured
+            safe_pkts = self.safe_count
+            suspicious_pkts = self.suspicious_count
+            blocked_pkts = self.blocked_count
+
+            if not self.is_running and self.app:
+                try:
+                    with self.app.app_context():
+                        if last_pkt_str == "None":
+                            latest_log = DNSLog.query.order_by(DNSLog.timestamp.desc()).first()
+                            if latest_log and latest_log.timestamp:
+                                last_pkt_str = latest_log.timestamp.strftime('%I:%M:%S %p')
+                        if total_pkts == 0:
+                            total_pkts = DNSLog.query.count()
+                            safe_pkts = DNSLog.query.filter_by(status='SAFE').count()
+                            suspicious_pkts = DNSLog.query.filter_by(status='SUSPICIOUS').count()
+                            blocked_pkts = DNSLog.query.filter_by(status='BLOCKED').count()
+                except Exception:
+                    pass
+            
             iface_name = getattr(self.selected_interface, 'description', None) or getattr(self.selected_interface, 'name', None) or str(self.selected_interface) or "All Interfaces"
             
             return {
@@ -230,10 +265,10 @@ class DNSSnifferService:
                 'uptime': uptime_str,
                 'last_packet_time': last_pkt_str,
                 'interface': iface_name,
-                'total_queries': self.total_captured,
-                'safe_queries': self.safe_count,
-                'suspicious_queries': self.suspicious_count,
-                'blocked_queries': self.blocked_count
+                'total_queries': total_pkts,
+                'safe_queries': safe_pkts,
+                'suspicious_queries': suspicious_pkts,
+                'blocked_queries': blocked_pkts
             }
 
     def _sniff_worker(self):
@@ -265,12 +300,9 @@ class DNSSnifferService:
             sniff(**sniff_kwargs)
         except Exception as e:
             print(f"[DNSSniffer] Sniffer stopped or encountered interface error: {e}")
-        finally:
-            with self._lock:
-                self.is_running = False
 
     def _process_scapy_packet(self, pkt):
-        """Extracts DNS information and evaluates rules."""
+        """Extracts individual DNS packet information and evaluates rules."""
         if not pkt.haslayer(DNS):
             return
             
@@ -291,11 +323,15 @@ class DNSSnifferService:
         if not raw_domain:
             return
             
-        # 2. Extract Query Type
+        # 2. Extract Query Type (Handles A, AAAA, HTTPS/65, SVCB/64, MX, CNAME, TXT, PTR, SRV, etc.)
         qtype_num = dns_layer[DNSQR].qtype
-        query_type = DNS_QTYPE_MAP.get(qtype_num, str(qtype_num))
+        query_type = DNS_QTYPE_MAP.get(qtype_num, f"TYPE{qtype_num}" if isinstance(qtype_num, int) else str(qtype_num))
         
-        # 3. Extract Client IP
+        # 3. Extract Client MAC & Client IP (Supports both IPv4 and IPv6)
+        client_mac = None
+        if pkt.haslayer(Ether):
+            client_mac = (pkt[Ether].src if dns_layer.qr == 0 else pkt[Ether].dst).lower()
+            
         client_ip = "Unknown"
         client_port = None
         if pkt.haslayer(IP):
@@ -306,6 +342,10 @@ class DNSSnifferService:
                 client_port = pkt[TCP].sport if dns_layer.qr == 0 else pkt[TCP].dport
         elif pkt.haslayer(IPv6):
             client_ip = pkt[IPv6].src if dns_layer.qr == 0 else pkt[IPv6].dst
+            if pkt.haslayer(UDP):
+                client_port = pkt[UDP].sport if dns_layer.qr == 0 else pkt[UDP].dport
+            elif pkt.haslayer(TCP):
+                client_port = pkt[TCP].sport if dns_layer.qr == 0 else pkt[TCP].dport
             
         # 4. Extract Response IP and TTL if available
         response_ip = "-"
@@ -341,10 +381,10 @@ class DNSSnifferService:
             elif status == "BLOCKED":
                 self.blocked_count += 1
                 
-        # 7. Record device activity
-        device_tracker.record_device_activity(client_ip, now_dt)
+        # 7. Record device activity (linking IPv4 and IPv6 to single host)
+        device_tracker.record_device_activity(client_ip, now_dt, client_mac=client_mac)
         
-        # 8. Prepare log payload
+        # 8. Prepare individual log payload (Every single captured DNS packet is preserved)
         log_payload = {
             'session_id': self.current_session_id,
             'timestamp': now_dt,
@@ -398,11 +438,15 @@ class DNSSnifferService:
         except queue.Full:
             pass
 
-    def ingest_simulated_packet(self, client_ip, domain, query_type="A", response_ip=None):
+    def ingest_simulated_packet(self, client_ip, domain, query_type="A", response_ip=None, client_mac=None):
         """Allows testing & simulation tools to feed DNS requests through the exact same capture pipeline."""
         now_dt = datetime.now()
         self.last_packet_time = now_dt
         
+        # Normalize query type display (e.g. 65 -> HTTPS)
+        if isinstance(query_type, int) or (isinstance(query_type, str) and query_type.isdigit()):
+            query_type = DNS_QTYPE_MAP.get(int(query_type), str(query_type))
+            
         status, detection_reason, matched_rule_id, alert_dict, activity_category = \
             detection_engine.evaluate_dns_request(client_ip, domain, query_type)
             
@@ -415,10 +459,10 @@ class DNSSnifferService:
             elif status == "BLOCKED":
                 self.blocked_count += 1
                 
-        device_tracker.record_device_activity(client_ip, now_dt)
+        device_tracker.record_device_activity(client_ip, now_dt, client_mac=client_mac)
         
         log_payload = {
-            'session_id': self.current_session_id,
+            'session_id': self.current_session_id if self.is_running else None,
             'timestamp': now_dt,
             'client_ip': client_ip,
             'client_port': 53535,
@@ -469,6 +513,10 @@ class DNSSnifferService:
                 try:
                     log_item = dict(log_payload)
                     alert_dict_copy = log_item.pop('alert_dict', None)
+                    if log_item.get('session_id'):
+                        sess_exists = MonitoringSession.query.get(log_item['session_id'])
+                        if not sess_exists:
+                            log_item['session_id'] = None
                     log_obj = DNSLog(**log_item)
                     db.session.add(log_obj)
                     db.session.commit()
@@ -515,47 +563,69 @@ class DNSSnifferService:
                 pass
                 
             if batch and self.app:
-                with self.app.app_context():
-                    try:
-                        alerts_to_add = []
-                        logs_to_add = []
-                        
-                        for item in batch:
-                            alert_dict = item.pop('alert_dict', None)
-                            
-                            log_obj = DNSLog(**item)
-                            db.session.add(log_obj)
-                            logs_to_add.append((log_obj, alert_dict))
-                            
-                        db.session.commit()
-                        
-                        for log_obj, alert_dict in logs_to_add:
-                            if alert_dict:
-                                alert_obj = SecurityAlert(
-                                    alert_id=alert_dict['alert_id'],
-                                    log_id=log_obj.id,
-                                    timestamp=alert_dict['timestamp'],
-                                    severity=alert_dict['severity'],
-                                    domain=alert_dict['domain'],
-                                    client_ip=alert_dict['client_ip'],
-                                    alert_type=alert_dict['alert_type'],
-                                    description=alert_dict['description'],
-                                    status=alert_dict['status']
-                                )
-                                alerts_to_add.append(alert_obj)
-                                
-                        if alerts_to_add:
-                            db.session.bulk_save_objects(alerts_to_add)
-                            db.session.commit()
-                            
-                    except Exception as e:
-                        db.session.rollback()
-                        print(f"[DNSSniffer] DB batch insert error: {e}")
+                self._write_batch_to_db(batch)
                         
             if time.time() - last_device_flush > 5.0 and self.app:
                 device_tracker.flush_devices_to_db(self.app)
                 last_device_flush = time.time()
                 
             time.sleep(0.1)
+        
+        # Final drain: flush any remaining items that arrived after the loop condition checked
+        final_batch = []
+        while not self.log_queue.empty():
+            try:
+                final_batch.append(self.log_queue.get_nowait())
+            except queue.Empty:
+                break
+        if final_batch and self.app:
+            self._write_batch_to_db(final_batch)
+        
+        # Final device flush
+        if self.app:
+            device_tracker.flush_devices_to_db(self.app)
+    
+    def _write_batch_to_db(self, batch):
+        """Writes a batch of log payloads and their associated alerts to MySQL."""
+        with self.app.app_context():
+            try:
+                alerts_to_add = []
+                logs_to_add = []
+                
+                for item in batch:
+                    alert_dict = item.pop('alert_dict', None)
+                    if item.get('session_id'):
+                        sess_exists = MonitoringSession.query.get(item['session_id'])
+                        if not sess_exists:
+                            item['session_id'] = None
+                    
+                    log_obj = DNSLog(**item)
+                    db.session.add(log_obj)
+                    logs_to_add.append((log_obj, alert_dict))
+                    
+                db.session.commit()
+                
+                for log_obj, alert_dict in logs_to_add:
+                    if alert_dict:
+                        alert_obj = SecurityAlert(
+                            alert_id=alert_dict['alert_id'],
+                            log_id=log_obj.id,
+                            timestamp=alert_dict['timestamp'],
+                            severity=alert_dict['severity'],
+                            domain=alert_dict['domain'],
+                            client_ip=alert_dict['client_ip'],
+                            alert_type=alert_dict['alert_type'],
+                            description=alert_dict['description'],
+                            status=alert_dict['status']
+                        )
+                        alerts_to_add.append(alert_obj)
+                        
+                if alerts_to_add:
+                    db.session.bulk_save_objects(alerts_to_add)
+                    db.session.commit()
+                    
+            except Exception as e:
+                db.session.rollback()
+                print(f"[DNSSniffer] DB batch insert error: {e}")
 
 sniffer_service = DNSSnifferService()

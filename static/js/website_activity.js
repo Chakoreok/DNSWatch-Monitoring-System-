@@ -8,13 +8,19 @@ let webSearchTimeout = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   fetchWebsiteActivity(1);
-  // Auto-refresh every 3 seconds if on page 1 and no search query
+  
+  // Auto-refresh periodically if on page 1 and no search query
   setInterval(() => {
     const search = document.getElementById('web-search-input').value.trim();
-    if (currentWebPage === 1 && !search) {
+    if (currentWebPage === 1 && !search && globalMonitoringActive) {
       fetchWebsiteActivity(1, true);
     }
-  }, 3000);
+  }, 2000);
+
+  // Listen to global monitoring state transitions
+  document.addEventListener('monitoringStateChanged', (e) => {
+    fetchWebsiteActivity(currentWebPage, true);
+  });
 });
 
 function debounceWebSearch() {
@@ -79,10 +85,14 @@ async function fetchWebsiteActivity(page = 1, isBackground = false) {
 
       renderWebPagination(data.pagination);
     } else {
+      const msg = globalMonitoringActive ? 
+        'Waiting for DNS requests... Run DNS queries to see live activity.' : 
+        'Monitoring is currently Inactive. Existing logs remain saved. Click <strong>Start Monitoring</strong> to capture live network traffic.';
+        
       tbody.innerHTML = `
         <tr>
           <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 35px;">
-            No website activity recorded yet. Run DNS queries to see live activity.
+            ${msg}
           </td>
         </tr>
       `;

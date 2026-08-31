@@ -6,8 +6,16 @@ let devicesSearchTimeout = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   fetchDevices();
-  // Auto refresh every 4 seconds
-  setInterval(fetchDevices, 4000);
+  // Auto refresh periodically when monitoring is active
+  setInterval(() => {
+    if (globalMonitoringActive) {
+      fetchDevices();
+    }
+  }, 3000);
+
+  document.addEventListener('monitoringStateChanged', () => {
+    fetchDevices();
+  });
 });
 
 function debounceDevicesSearch() {

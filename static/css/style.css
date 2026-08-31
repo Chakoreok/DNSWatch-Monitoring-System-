@@ -326,6 +326,19 @@ body {
   padding: 5px 12px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.live-badge.active {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.live-badge.inactive {
+  color: #64748b;
+  background: #f8fafc;
+  border-color: #e2e8f0;
 }
 
 .notification-btn {

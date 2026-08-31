@@ -11,6 +11,20 @@ let cachedAlerts = [];
 document.addEventListener('DOMContentLoaded', () => {
   fetchAlertCounts();
   fetchAlerts(1);
+  
+  // Auto refresh periodically when monitoring is active
+  setInterval(() => {
+    const search = document.getElementById('alerts-search-input').value.trim();
+    if (currentAlertPage === 1 && !search && typeof globalMonitoringActive !== 'undefined' && globalMonitoringActive) {
+      fetchAlertCounts();
+      fetchAlerts(1, true);
+    }
+  }, 3000);
+
+  document.addEventListener('monitoringStateChanged', () => {
+    fetchAlertCounts();
+    fetchAlerts(currentAlertPage, true);
+  });
 });
 
 function debounceAlertsSearch() {

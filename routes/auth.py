@@ -1,29 +1,47 @@
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
+from flask import Blueprint, request, jsonify, redirect, url_for, session
 from flask_login import login_user, logout_user, login_required, current_user
 from database import db
-from models import User, Role
+from models import User
 from datetime import datetime
 
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/api/auth/login', methods=['POST'])
 def api_login():
+    """
+    Validates user credentials against MySQL dnswatch_db users table.
+    Establishes an authenticated session on success.
+    """
     data = request.get_json() or {}
-    email_or_username = data.get('email', '').strip()
-    password = data.get('password', '')
+    username_or_email = (data.get('username') or data.get('email') or '').strip()
+    password = (data.get('password') or '').strip()
     
-    if not email_or_username or not password:
-        return jsonify({'success': False, 'message': 'Email/username and password are required.'}), 400
+    if not username_or_email or not password:
+        return jsonify({
+            'success': False,
+            'message': 'Username and password are required.'
+        }), 400
         
-    user = User.query.filter((User.email == email_or_username) | (User.username == email_or_username)).first()
+    user = User.query.filter(
+        (User.username == username_or_email) | 
+        (User.email == username_or_email)
+    ).first()
     
     if not user or not user.check_password(password):
-        return jsonify({'success': False, 'message': 'Invalid email/username or password.'}), 401
+        return jsonify({
+            'success': False,
+            'message': 'Invalid username or password.'
+        }), 401
         
     if user.status != 'ACTIVE':
-        return jsonify({'success': False, 'message': 'Account is inactive. Contact administrator.'}), 403
+        return jsonify({
+            'success': False,
+            'message': 'Account is inactive. Contact administrator.'
+        }), 403
         
-    login_user(user, remember=True)
+    # Mark session permanent so refreshing browser keeps session active
+    session.permanent = True
+    login_user(user, remember=False)
     user.last_login = datetime.utcnow()
     db.session.commit()
     
@@ -34,12 +52,28 @@ def api_login():
         'redirect': url_for('views.dashboard_page')
     })
 
-@auth_bp.route('/api/auth/logout', methods=['POST', 'GET'])
-def api_logout():
+@auth_bp.route('/logout', methods=['GET', 'POST'])
+@auth_bp.route('/api/auth/logout', methods=['GET', 'POST'])
+def logout():
+    """
+    Destroys the authenticated session and logs the user out.
+    Redirects to the Login Page for standard browser navigation.
+    """
     logout_user()
-    if request.method == 'GET':
-        return redirect(url_for('views.login_page'))
-    return jsonify({'success': True, 'message': 'Logged out successfully.', 'redirect': url_for('views.login_page')})
+    session.clear()
+    
+    if request.is_json or (request.method == 'POST' and not request.form):
+        resp = jsonify({
+            'success': True,
+            'message': 'Logged out successfully.',
+            'redirect': url_for('views.login_page')
+        })
+    else:
+        resp = redirect(url_for('views.login_page'))
+        
+    resp.delete_cookie('session')
+    resp.delete_cookie('remember_token')
+    return resp
 
 @auth_bp.route('/api/auth/me', methods=['GET'])
 def api_me():

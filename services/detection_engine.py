@@ -156,6 +156,13 @@ class DetectionEngine:
         if not domain:
             return status, detection_reason, matched_rule_id, alert_dict, activity_category
 
+        # Auto-refresh cache if TTL expired
+        if now - self.last_cache_reload > self.cache_ttl:
+            try:
+                self.reload_cache()
+            except Exception:
+                pass
+
         # -------------------------------------------------------------
         # DETECTION METHOD 1: Malicious Domain List Matching
         # -------------------------------------------------------------

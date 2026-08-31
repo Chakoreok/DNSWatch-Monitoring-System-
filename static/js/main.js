@@ -3,12 +3,17 @@
 // ==========================================================================
 
 let globalMonitoringActive = false;
+let previousMonitoringRunning = false;
 
 // 1. Initialize Global App State
 document.addEventListener('DOMContentLoaded', () => {
+  if (document.body && document.body.dataset && document.body.dataset.monitoringActive) {
+    globalMonitoringActive = document.body.dataset.monitoringActive === 'true';
+    previousMonitoringRunning = globalMonitoringActive;
+  }
   pollGlobalStatus();
-  // Poll monitoring status every 3 seconds
-  setInterval(pollGlobalStatus, 3000);
+  // Poll monitoring status every 1.5 seconds for instant synchronization
+  setInterval(pollGlobalStatus, 1500);
 });
 
 // 2. Poll Status from Backend
@@ -38,8 +43,10 @@ async function pollGlobalStatus() {
   }
 }
 
-// 3. Update Monitoring UI state
+// 3. Update Monitoring UI state across all views
 function updateMonitoringUI(mon) {
+  const stateChanged = (previousMonitoringRunning !== mon.is_running);
+  previousMonitoringRunning = mon.is_running;
   globalMonitoringActive = mon.is_running;
   
   const sideDot = document.getElementById('sidebar-status-dot');
@@ -49,6 +56,8 @@ function updateMonitoringUI(mon) {
   
   const headDot = document.getElementById('header-status-dot');
   const headText = document.getElementById('header-status-text');
+  const headBadge = document.getElementById('header-status-badge');
+  const dashBadge = document.getElementById('status-mon-badge');
 
   if (mon.is_running) {
     if (sideDot) sideDot.className = 'status-dot active';
@@ -56,6 +65,13 @@ function updateMonitoringUI(mon) {
     if (sideStarted) sideStarted.textContent = `Started at ${mon.started_at}`;
     if (headDot) headDot.className = 'status-dot active';
     if (headText) headText.textContent = 'Monitoring Active';
+    if (headBadge) headBadge.className = 'live-badge active';
+    
+    if (dashBadge) {
+      dashBadge.className = 'badge badge-safe';
+      dashBadge.removeAttribute('style');
+      dashBadge.textContent = 'Active';
+    }
     
     if (sideBtn) {
       sideBtn.className = 'btn-monitoring-toggle btn-stop';
@@ -67,11 +83,24 @@ function updateMonitoringUI(mon) {
     if (sideStarted) sideStarted.textContent = 'Capture Inactive';
     if (headDot) headDot.className = 'status-dot';
     if (headText) headText.textContent = 'Monitoring Inactive';
+    if (headBadge) headBadge.className = 'live-badge inactive';
+    
+    if (dashBadge) {
+      dashBadge.className = 'badge';
+      dashBadge.style.background = '#f1f5f9';
+      dashBadge.style.color = '#64748b';
+      dashBadge.textContent = 'Inactive';
+    }
     
     if (sideBtn) {
       sideBtn.className = 'btn-monitoring-toggle btn-start';
       sideBtn.innerHTML = '<i class="fa-solid fa-play"></i> <span>Start Monitoring</span>';
     }
+  }
+
+  // Broadcast state change event to active page controllers only when state transitions
+  if (stateChanged) {
+    document.dispatchEvent(new CustomEvent('monitoringStateChanged', { detail: mon }));
   }
 }
 
@@ -94,7 +123,9 @@ async function toggleGlobalMonitoring() {
     
     // Call page-specific refresh if defined
     if (typeof refreshDashboard === 'function') refreshDashboard();
-    if (typeof refreshLogs === 'function') refreshLogs();
+    if (typeof fetchWebsiteActivity === 'function') fetchWebsiteActivity(1);
+    if (typeof fetchLogs === 'function') fetchLogs(1);
+    if (typeof fetchDevices === 'function') fetchDevices();
   } catch (err) {
     console.error('Error toggling monitoring:', err);
     alert('Failed to toggle monitoring: ' + err.message);

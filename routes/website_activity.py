@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from database import db
 from models import DNSLog, Device
+from services.device_tracker import device_tracker
 from datetime import datetime
 
 website_activity_bp = Blueprint('website_activity', __name__)
@@ -41,15 +42,26 @@ def get_website_activity():
     total = query.count()
     logs_page = query.order_by(DNSLog.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
-    # Pre-fetch known devices for quick client_ip -> Device lookup
+    # Known devices and local IPs for accurate device name display
+    local_ips = device_tracker.get_local_system_ips()
+    primary_local_ip = device_tracker.get_primary_local_ip()
     devices_by_ip = {d.client_ip: d for d in Device.query.all()}
+    
+    local_dev = Device.query.filter(
+        (Device.client_ip == primary_local_ip) | 
+        (Device.device_name.ilike("%Local Workstation%"))
+    ).first()
     
     activities = []
     for log in logs_page.items:
-        dev = devices_by_ip.get(log.client_ip)
-        dev_name = dev.device_name if dev else f"Host-{log.client_ip.replace(':', '-').replace('.', '-')}"
-        dev_type = dev.device_type if dev else "Network Client"
-        
+        if log.client_ip and log.client_ip.lower() in local_ips:
+            dev_name = local_dev.device_name if local_dev else "Local Workstation (Monitored Host)"
+            dev_type = local_dev.device_type if local_dev else "Workstation / PC"
+        else:
+            dev = devices_by_ip.get(log.client_ip)
+            dev_name = dev.device_name if dev else f"Host-{log.client_ip.replace(':', '-').replace('.', '-')}"
+            dev_type = dev.device_type if dev else "Network Client"
+            
         activities.append({
             'id': log.id,
             'timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '',

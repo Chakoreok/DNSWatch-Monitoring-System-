@@ -10,8 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <!-- Chart.js for Reports & Dashboard visualizations -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
+<body data-monitoring-active="{{ 'true' if monitoring.is_running else 'false' }}">
   <div class="app-container">
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
@@ -69,7 +68,7 @@
             <span id="sidebar-status-text">{% if monitoring.is_running %}Monitoring Active{% else %}Monitoring Inactive{% endif %}</span>
           </div>
           <div class="started-at-text" id="sidebar-started-at">
-            {% if monitoring.is_running %}Started at {{ monitoring.started_at }}{% else %}Ready to capture{% endif %}
+            {% if monitoring.is_running %}Started at {{ monitoring.started_at }}{% else %}Capture Inactive{% endif %}
           </div>
           <button class="btn-monitoring-toggle {% if monitoring.is_running %}btn-stop{% else %}btn-start{% endif %}" id="btn-toggle-monitoring" onclick="toggleGlobalMonitoring()">
             {% if monitoring.is_running %}
@@ -95,7 +94,7 @@
         </div>
         
         <div class="header-right">
-          <div class="live-badge" id="header-status-badge">
+          <div class="live-badge {% if monitoring.is_running %}active{% else %}inactive{% endif %}" id="header-status-badge">
             <span class="status-dot {% if monitoring.is_running %}active{% endif %}" id="header-status-dot"></span>
             <span id="header-status-text">{% if monitoring.is_running %}Monitoring Active{% else %}Monitoring Inactive{% endif %}</span>
           </div>
@@ -105,7 +104,7 @@
             <span class="notification-badge" id="header-alert-count">0</span>
           </a>
           
-          <div class="user-profile" onclick="window.location.href='{{ url_for('views.settings_page') }}'">
+          <a href="{{ url_for('views.settings_page') }}" class="user-profile" title="User Settings">
             <div class="user-avatar">
               <i class="fa-solid fa-user-shield"></i>
             </div>
@@ -113,7 +112,11 @@
               <div class="user-name">{% if current_user.is_authenticated %}{{ current_user.full_name or current_user.username }}{% else %}Administrator{% endif %}</div>
               <div class="user-role">{% if current_user.is_authenticated %}{{ current_user.role.name }}{% else %}admin{% endif %}</div>
             </div>
-          </div>
+          </a>
+          
+          <a href="{{ url_for('auth.logout') }}" class="notification-btn" title="Sign Out / Logout" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.25);">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </a>
         </div>
       </header>
 

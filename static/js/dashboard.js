@@ -6,8 +6,17 @@ let dashboardPollInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   refreshDashboard();
-  // Live polling every 1.5 seconds for real-time responsiveness
-  dashboardPollInterval = setInterval(refreshDashboard, 1500);
+  // Live polling every 1.5 seconds when monitoring is active
+  dashboardPollInterval = setInterval(() => {
+    if (globalMonitoringActive) {
+      refreshDashboard();
+    }
+  }, 1500);
+
+  // Listen to monitoring state changes
+  document.addEventListener('monitoringStateChanged', () => {
+    refreshDashboard();
+  });
 });
 
 async function refreshDashboard() {
@@ -131,6 +140,7 @@ async function fetchSystemStatus() {
       const badge = document.getElementById('status-mon-badge');
       if (mon.is_running) {
         badge.className = 'badge badge-safe';
+        badge.removeAttribute('style');
         badge.textContent = 'Active';
       } else {
         badge.className = 'badge';

@@ -3,6 +3,7 @@ import io
 from flask import Blueprint, request, jsonify, Response
 from database import db
 from models import DNSLog, SecurityAlert, Device
+from services.device_tracker import device_tracker
 from datetime import datetime, timedelta
 
 reports_bp = Blueprint('reports', __name__)
@@ -131,6 +132,12 @@ def get_reports_summary():
     top_domains_list = [{'domain': d[0], 'queries': d[1]} for d in top_domains]
     
     # 5. Top Devices by Query Count
+    local_ips = device_tracker.get_local_system_ips()
+    primary_local_ip = device_tracker.get_primary_local_ip()
+    local_dev = Device.query.filter(
+        (Device.client_ip == primary_local_ip) | 
+        (Device.device_name.ilike("%Local Workstation%"))
+    ).first()
     devices_by_ip = {d.client_ip: d.device_name for d in Device.query.all()}
     
     top_devices_query = db.session.query(
@@ -147,7 +154,11 @@ def get_reports_summary():
     top_devices = top_devices_query.group_by(DNSLog.client_ip).order_by(db.desc('queries')).limit(5).all()
     top_devices_list = []
     for dev_ip, count in top_devices:
-        dev_name = devices_by_ip.get(dev_ip, f"Host-{dev_ip.replace(':', '-').replace('.', '-')}")
+        if dev_ip and dev_ip.lower() in local_ips:
+            dev_name = local_dev.device_name if local_dev else "Local Workstation (Monitored Host)"
+        else:
+            dev_name = devices_by_ip.get(dev_ip, f"Host-{dev_ip.replace(':', '-').replace('.', '-')}")
+            
         top_devices_list.append({
             'ip_address': dev_ip,
             'queries': count,
