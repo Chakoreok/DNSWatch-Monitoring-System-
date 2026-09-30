@@ -3,6 +3,7 @@
 // ==========================================================================
 
 let dashboardPollInterval = null;
+let viewersPollInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   refreshDashboard();
@@ -17,6 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('monitoringStateChanged', () => {
     refreshDashboard();
   });
+
+  // Portal viewers: load immediately, then every 15s (admin/analyst only)
+  if (typeof IS_ADMIN !== 'undefined' && (IS_ADMIN || IS_ANALYST)) {
+    loadPortalViewers();
+    viewersPollInterval = setInterval(loadPortalViewers, 15000);
+  }
 });
 
 async function refreshDashboard() {
@@ -34,13 +41,20 @@ async function fetchDashboardStats() {
     const res = await fetch('/api/dns/stats');
     const data = await res.json();
     if (data.success) {
-      document.getElementById('dash-total-queries').textContent = Number(data.total_queries).toLocaleString();
-      document.getElementById('dash-suspicious-queries').textContent = Number(data.suspicious_queries).toLocaleString();
-      document.getElementById('dash-blocked-queries').textContent = Number(data.blocked_queries).toLocaleString();
+      animateValue('dash-total-queries', Number(data.total_queries));
+      animateValue('dash-suspicious-queries', Number(data.suspicious_queries));
+      animateValue('dash-blocked-queries', Number(data.blocked_queries));
     }
   } catch (err) {
     console.error('Error fetching dashboard stats:', err);
   }
+}
+
+// Helper: Animate Counter Numbers smoothly
+function animateValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value.toLocaleString();
 }
 
 // 2. Fetch & Render Live DNS Queries Table
@@ -53,22 +67,35 @@ async function fetchLiveDNSLogs() {
     if (data.success && data.logs && data.logs.length > 0) {
       tbody.innerHTML = data.logs.map(log => {
         const timeStr = log.time_only || (log.timestamp ? log.timestamp.split(' ')[1] : '-');
-        const iconHtml = getDomainIcon(log.domain || log.query_domain);
+        const domain = log.domain || log.query_domain;
+        const iconHtml = getDomainIcon(domain);
         const badgeHtml = getStatusBadge(log.status);
+        const qtypeBadge = typeof getQueryTypeBadge === 'function' ? getQueryTypeBadge(log.query_type) : `<span class="qtype-badge qtype-A">${log.query_type || 'A'}</span>`;
         const respIp = log.response_ip && log.response_ip !== '-' ? log.response_ip : '-';
+        const clientIp = log.client_ip || 'Unknown';
         
         return `
           <tr>
-            <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap;">${timeStr}</td>
-            <td style="font-family: monospace; font-size: 12px; font-weight: 500;">${log.client_ip || 'Unknown'}</td>
+            <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap; font-family: var(--font-mono);">${timeStr}</td>
+            <td>
+              <span class="ip-chip" onclick="copyToClipboard('${clientIp}', 'Client IP')" title="Click to copy IP">
+                ${clientIp} <i class="fa-regular fa-copy"></i>
+              </span>
+            </td>
             <td>
               <div class="domain-cell">
                 <span class="domain-icon">${iconHtml}</span>
-                <span style="font-weight: 500;">${log.domain || log.query_domain}</span>
+                <span style="font-weight: 600; cursor: pointer;" onclick="copyToClipboard('${domain}', 'Domain')" title="Click to copy">${domain}</span>
               </div>
             </td>
-            <td><span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;">${log.query_type || 'A'}</span></td>
-            <td style="font-family: monospace; font-size: 12px; color: ${respIp !== '-' ? 'var(--text-main)' : 'var(--text-light)'};">${respIp}</td>
+            <td>${qtypeBadge}</td>
+            <td>
+              ${respIp !== '-' ? `
+                <span class="ip-chip" onclick="copyToClipboard('${respIp}', 'Response IP')" title="Click to copy IP">
+                  ${respIp} <i class="fa-regular fa-copy"></i>
+                </span>
+              ` : '<span style="color: var(--text-light); font-family: var(--font-mono);">-</span>'}
+            </td>
             <td>${badgeHtml}</td>
           </tr>
         `;
@@ -78,8 +105,9 @@ async function fetchLiveDNSLogs() {
     } else {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 25px;">
-            No DNS queries recorded yet. Click <strong>Start Monitoring</strong> or run queries on port 53.
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
+            <div style="font-size: 13px; font-weight: 500;">No DNS queries recorded yet</div>
+            <div style="font-size: 11.5px; color: var(--text-light); margin-top: 4px;">Click <strong>Start Sniffer</strong> in the sidebar to begin live packet capture on port 53.</div>
           </td>
         </tr>
       `;
@@ -99,18 +127,27 @@ async function fetchRecentAlerts() {
     
     if (data.success && data.alerts && data.alerts.length > 0) {
       container.innerHTML = data.alerts.map(alt => {
-        const sevClass = (alt.severity || 'HIGH').toLowerCase() === 'high' ? 'badge-high' : 
-                         ((alt.severity || '').toLowerCase() === 'medium' ? 'badge-medium' : 'badge-low');
+        const sev = (alt.severity || 'HIGH').toUpperCase();
+        let sevItemClass = '';
+        let sevBadge = '<span class="badge-high"><i class="fa-solid fa-triangle-exclamation"></i> HIGH</span>';
+        if (sev === 'MEDIUM') {
+          sevItemClass = 'sev-medium';
+          sevBadge = '<span class="badge-medium"><i class="fa-solid fa-triangle-exclamation"></i> MEDIUM</span>';
+        } else if (sev === 'LOW') {
+          sevItemClass = 'sev-low';
+          sevBadge = '<span class="badge-low"><i class="fa-solid fa-circle-info"></i> LOW</span>';
+        }
+        
         const timeStr = alt.time_only || (alt.timestamp ? alt.timestamp.split(' ')[1] : '-');
         
         return `
-          <div class="alert-widget-item">
+          <div class="alert-widget-item ${sevItemClass}">
             <div class="alert-widget-left">
               <div class="alert-widget-title">${alt.alert_type}</div>
               <div class="alert-widget-domain">${alt.domain || alt.client_ip}</div>
             </div>
             <div class="alert-widget-right">
-              <span class="${sevClass}" style="font-size: 11px;">${alt.severity}</span>
+              ${sevBadge}
               <span class="alert-widget-time">${timeStr}</span>
             </div>
           </div>
@@ -118,9 +155,10 @@ async function fetchRecentAlerts() {
       }).join('');
     } else {
       container.innerHTML = `
-        <div style="text-align: center; color: var(--text-muted); padding: 20px 0; font-size: 12px;">
-          <i class="fa-solid fa-circle-check" style="color: var(--success); font-size: 18px; margin-bottom: 6px;"></i>
-          <div>No security threats detected.</div>
+        <div style="text-align: center; color: var(--text-muted); padding: 25px 0; font-size: 12.5px;">
+          <i class="fa-solid fa-circle-check" style="color: var(--brand-success); font-size: 24px; margin-bottom: 8px;"></i>
+          <div style="font-weight: 600; color: var(--text-main);">Zero Active Incidents</div>
+          <div style="font-size: 11.5px; color: var(--text-light); margin-top: 2px;">No malicious activity detected in recent packets.</div>
         </div>
       `;
     }
@@ -138,22 +176,149 @@ async function fetchSystemStatus() {
       const mon = data.monitoring;
       
       const badge = document.getElementById('status-mon-badge');
-      if (mon.is_running) {
-        badge.className = 'badge badge-safe';
-        badge.removeAttribute('style');
-        badge.textContent = 'Active';
-      } else {
-        badge.className = 'badge';
-        badge.style.background = '#f1f5f9';
-        badge.style.color = '#64748b';
-        badge.textContent = 'Inactive';
+      if (badge) {
+        if (mon.is_running) {
+          badge.className = 'badge badge-safe';
+          badge.innerHTML = '<i class="fa-solid fa-bolt"></i> Active';
+        } else {
+          badge.className = 'badge';
+          badge.style.background = 'var(--bg-surface-elevated)';
+          badge.style.color = 'var(--text-light)';
+          badge.innerHTML = '<i class="fa-solid fa-power-off"></i> Inactive';
+        }
       }
       
-      document.getElementById('status-packets-count').textContent = Number(mon.total_queries).toLocaleString();
-      document.getElementById('status-last-packet').textContent = mon.last_packet_time || 'None';
-      document.getElementById('status-uptime').textContent = mon.uptime || '00:00:00';
+      const packetsEl = document.getElementById('status-packets-count');
+      if (packetsEl) packetsEl.textContent = Number(mon.total_queries || 0).toLocaleString();
+      
+      const lastPktEl = document.getElementById('status-last-packet');
+      if (lastPktEl) lastPktEl.textContent = mon.last_packet_time || 'None';
+      
+      const uptimeEl = document.getElementById('status-uptime');
+      if (uptimeEl) uptimeEl.textContent = mon.uptime || '00:00:00';
     }
   } catch (err) {
     console.error('Error fetching system status:', err);
   }
 }
+
+// ==========================================================================
+// 5. Portal Viewers — Live session table
+// ==========================================================================
+async function loadPortalViewers() {
+  const tbody = document.getElementById('portal-viewers-tbody');
+  if (!tbody) return;
+
+  const roleFilter = (document.getElementById('viewer-role-filter') || {}).value || '';
+  let url = '/api/portal-sessions';
+  if (roleFilter) url += `?role=${encodeURIComponent(roleFilter)}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.success) return;
+
+    const sessions = data.sessions || [];
+    const onlineCount = data.online_count || 0;
+
+    // Update counters
+    const onlineBadge = document.getElementById('online-viewers-badge');
+    if (onlineBadge) onlineBadge.textContent = onlineCount;
+
+    const onlineEl = document.getElementById('viewers-online-count');
+    if (onlineEl) onlineEl.textContent = onlineCount;
+
+    const totalEl = document.getElementById('viewers-total-count');
+    if (totalEl) totalEl.textContent = sessions.length;
+
+    const refreshEl = document.getElementById('viewers-last-refresh');
+    if (refreshEl) refreshEl.textContent = new Date().toLocaleTimeString();
+
+    const counterEl = document.getElementById('viewers-counter');
+    if (counterEl) counterEl.textContent = `${onlineCount} online · ${sessions.length} total session(s)`;
+
+    if (sessions.length === 0) {
+      const cols = IS_ADMIN ? 9 : 8;
+      tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center;color:var(--text-muted);padding:40px;">
+        <i class="fa-solid fa-users-slash" style="font-size:26px;margin-bottom:10px;color:var(--text-light);"></i>
+        <div style="font-weight:600;color:var(--text-main);margin-bottom:4px;">No active portal sessions</div>
+        <div style="font-size:12px;">No users are currently logged in to the web portal.</div>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = sessions.map(s => {
+      const isOnline = s.is_online;
+      const statusDot = isOnline
+        ? `<span style="display:inline-flex;align-items:center;gap:6px;"><span class="status-dot active" style="width:8px;height:8px;"></span><span style="color:var(--brand-success);font-size:12px;font-weight:600;">Online</span></span>`
+        : `<span style="display:inline-flex;align-items:center;gap:6px;"><span class="status-dot" style="width:8px;height:8px;background:var(--text-light);"></span><span style="color:var(--text-muted);font-size:12px;">Offline</span></span>`;
+
+      // Role badge
+      const role = s.role_name || 'Viewer';
+      let roleBadgeClass = 'badge';
+      if (role.toLowerCase().includes('admin')) roleBadgeClass += ' badge-blocked';
+      else if (role.toLowerCase().includes('analyst')) roleBadgeClass += ' badge-suspicious';
+      else roleBadgeClass += ' badge-safe';
+
+      // Browser icon
+      const browserIcons = { Chrome: 'fa-brands fa-chrome', Firefox: 'fa-brands fa-firefox-browser', Safari: 'fa-brands fa-safari', Edge: 'fa-brands fa-edge', Opera: 'fa-brands fa-opera' };
+      const browserIcon = browserIcons[s.browser] || 'fa-solid fa-globe';
+
+      // Page display name
+      const pageDisplay = s.current_page === '/' ? 'Home' : (s.current_page || '/').replace(/^\//, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Dashboard';
+
+      const adminAction = IS_ADMIN ? `<td><button class="btn btn-outline btn-sm" onclick="endPortalSession(${s.id}, '${s.username}')" style="color:var(--brand-danger);border-color:rgba(239,68,68,0.3);font-size:11px;" title="Force end this session"><i class="fa-solid fa-plug-circle-xmark"></i> End</button></td>` : '';
+
+      return `<tr>
+        <td>${statusDot}</td>
+        <td>
+          <div style="font-weight:600;color:var(--text-main);">${s.username}</div>
+          <div style="font-size:11px;color:var(--text-muted);">ID: ${s.user_id}</div>
+        </td>
+        <td><span class="${roleBadgeClass}" style="font-size:11px;">${role}</span></td>
+        <td>
+          <span class="ip-chip" onclick="copyToClipboard('${s.ip_address}', 'IP Address')" title="Click to copy IP address">
+            ${s.ip_address} <i class="fa-regular fa-copy"></i>
+          </span>
+        </td>
+        <td>
+          <div style="font-size:12px;"><i class="${browserIcon}" style="margin-right:4px;color:var(--brand-info);"></i>${s.browser}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${s.os}</div>
+        </td>
+        <td>
+          <span style="font-size:12px;font-family:var(--font-mono);color:var(--text-main);">${s.current_page || '/'}</span>
+          <div style="font-size:11px;color:var(--text-muted);">${pageDisplay}</div>
+        </td>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-main);">${s.session_duration}</td>
+        <td style="font-size:12px;color:var(--text-muted);">${s.last_seen_ago}</td>
+        ${adminAction}
+      </tr>`;
+    }).join('');
+
+  } catch (err) {
+    console.error('Error fetching portal viewers:', err);
+  }
+}
+
+async function endPortalSession(sessionId, username) {
+  if (!confirm(`Force end the portal session for user "${username}"? They will be disconnected on their next action.`)) return;
+
+  try {
+    const res = await fetch(`/api/portal-sessions/${sessionId}/end`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin'
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (typeof showToast === 'function') showToast(data.message, 'success');
+      loadPortalViewers();
+    } else {
+      if (typeof showToast === 'function') showToast(data.message || 'Failed to end session.', 'error');
+    }
+  } catch (err) {
+    console.error('Error ending portal session:', err);
+  }
+}
+

@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 2000);
 
   // Listen to global monitoring state transitions
-  document.addEventListener('monitoringStateChanged', (e) => {
+  document.addEventListener('monitoringStateChanged', () => {
     fetchWebsiteActivity(currentWebPage, true);
   });
 });
@@ -43,6 +43,9 @@ async function fetchWebsiteActivity(page = 1, isBackground = false) {
   if (status && status !== 'ALL') url.searchParams.set('status', status);
   if (dateVal) url.searchParams.set('date', dateVal);
 
+  const refreshIcon = document.querySelector('.toolbar-right button i.fa-rotate-right');
+  if (refreshIcon && !isBackground) refreshIcon.classList.add('fa-spin');
+
   try {
     const res = await fetch(url);
     const data = await res.json();
@@ -54,31 +57,40 @@ async function fetchWebsiteActivity(page = 1, isBackground = false) {
         const iconHtml = getDomainIcon(act.domain);
         const badgeHtml = getStatusBadge(act.status);
         
-        let typeIcon = '<i class="fa-solid fa-desktop" style="color:#2563EB"></i> Workstation';
+        let typeIcon = '<i class="fa-solid fa-desktop" style="color:#60a5fa"></i> Workstation';
         const dtype = (act.device_type || '').toLowerCase();
         if (dtype.includes('android') || dtype.includes('mobile')) {
-          typeIcon = '<i class="fa-brands fa-android" style="color:#10B981"></i> Android';
+          typeIcon = '<i class="fa-brands fa-android" style="color:#34d399"></i> Android';
         } else if (dtype.includes('apple') || dtype.includes('ios') || dtype.includes('mac')) {
-          typeIcon = '<i class="fa-brands fa-apple" style="color:#64748B"></i> Apple';
+          typeIcon = '<i class="fa-brands fa-apple" style="color:#cbd5e1"></i> Apple';
         } else if (dtype.includes('windows')) {
-          typeIcon = '<i class="fa-brands fa-windows" style="color:#00A4EF"></i> Windows';
+          typeIcon = '<i class="fa-brands fa-windows" style="color:#38bdf8"></i> Windows';
         } else {
-          typeIcon = '<i class="fa-solid fa-network-wired" style="color:#64748B"></i> ' + (act.device_type || 'Host');
+          typeIcon = '<i class="fa-solid fa-network-wired" style="color:var(--text-light)"></i> ' + (act.device_type || 'Host');
         }
+
+        const clientIp = act.client_ip || 'Unknown';
+        const actionHtml = typeof renderActionCell === 'function' ? 
+          renderActionCell(act.domain, clientIp, '', act.status) : '-';
 
         return `
           <tr>
-            <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap;">${timeStr}</td>
+            <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap; font-family: var(--font-mono);">${timeStr}</td>
             <td>
               <div class="domain-cell">
                 <span class="domain-icon">${iconHtml}</span>
-                <span style="font-weight: 500;">${act.domain}</span>
+                <span style="font-weight: 600; cursor: pointer;" onclick="copyToClipboard('${act.domain}', 'Domain')" title="Click to copy">${act.domain}</span>
               </div>
             </td>
-            <td style="font-weight: 500;">${act.device_name}</td>
-            <td style="font-family: monospace; font-size: 12px;">${act.client_ip}</td>
+            <td style="font-weight: 600; color: var(--text-main);">${act.device_name}</td>
+            <td>
+              <span class="ip-chip" onclick="copyToClipboard('${clientIp}', 'Client IP')" title="Click to copy IP">
+                ${clientIp} <i class="fa-regular fa-copy"></i>
+              </span>
+            </td>
             <td>${typeIcon}</td>
             <td>${badgeHtml}</td>
+            <td style="white-space: nowrap;">${actionHtml}</td>
           </tr>
         `;
       }).join('');
@@ -86,13 +98,14 @@ async function fetchWebsiteActivity(page = 1, isBackground = false) {
       renderWebPagination(data.pagination);
     } else {
       const msg = globalMonitoringActive ? 
-        'Waiting for DNS requests... Run DNS queries to see live activity.' : 
-        'Monitoring is currently Inactive. Existing logs remain saved. Click <strong>Start Monitoring</strong> to capture live network traffic.';
+        'Waiting for DNS requests... Run DNS queries to see live web destinations.' : 
+        'Monitoring is currently Inactive. Existing logs remain saved. Click <strong>Start Sniffer</strong> to capture live network traffic.';
         
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 35px;">
-            ${msg}
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px;">
+            <i class="fa-solid fa-globe" style="font-size: 24px; margin-bottom: 8px; color: var(--text-light);"></i>
+            <div>${msg}</div>
           </td>
         </tr>
       `;
@@ -101,6 +114,8 @@ async function fetchWebsiteActivity(page = 1, isBackground = false) {
     }
   } catch (err) {
     if (!isBackground) console.error('Error fetching website activity:', err);
+  } finally {
+    if (refreshIcon) refreshIcon.classList.remove('fa-spin');
   }
 }
 

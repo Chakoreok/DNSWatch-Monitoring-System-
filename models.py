@@ -50,12 +50,21 @@ class User(UserMixin, BaseModel):
         
     @property
     def is_admin(self):
-        return self.role and self.role.name.lower() == 'administrator'
+        return bool(self.role and self.role.name.lower() in ('administrator', 'admin'))
         
     @property
     def is_analyst(self):
-        return self.role and self.role.name.lower() in ('administrator', 'security analyst')
-        
+        if not self.role:
+            return False
+        r = self.role.name.lower()
+        return r in ('administrator', 'admin', 'security analyst', 'senior analyst', 'senior security analyst', 'analyst') or 'analyst' in r
+
+    @property
+    def can_request_block(self):
+        """True for Security Analysts and Administrators — they can submit block requests."""
+        return self.is_admin or self.is_analyst
+
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -306,3 +315,156 @@ class WebsiteActivity(BaseModel):
             'device_type': self.device_type,
             'status': self.status
         }
+
+
+class ManualBlockRule(BaseModel):
+    """
+    Administrator-approved manual DNS block rules.
+    When active, the DNS sinkhole returns NXDOMAIN for the domain (and all subdomains).
+    The detection engine also classifies matching queries as BLOCKED in DNS logs.
+    """
+    __tablename__ = 'manual_block_rules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    domain = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    reason = db.Column(db.Text, nullable=True)
+    created_by = db.Column(db.String(100), nullable=False, default='admin')   # username who created / requested
+    approved_by = db.Column(db.String(100), nullable=True)                     # username of admin who approved
+    source_request_id = db.Column(db.Integer, nullable=True)                   # links back to BlockRequest if applicable
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'domain': self.domain,
+            'reason': self.reason or '',
+            'created_by': self.created_by,
+            'approved_by': self.approved_by or '',
+            'source_request_id': self.source_request_id,
+            'is_active': bool(self.is_active),
+            'status': 'Active' if self.is_active else 'Inactive',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
+            'created_at_display': self.created_at.strftime('%b %d, %Y %I:%M %p') if self.created_at else ''
+        }
+
+
+class BlockRequest(BaseModel):
+    """
+    Block requests submitted by Security Analysts for Administrator review.
+    Workflow: PENDING → APPROVED (creates ManualBlockRule) or REJECTED.
+    """
+    __tablename__ = 'block_requests'
+
+    id = db.Column(db.Integer, primary_key=True)
+    domain = db.Column(db.String(255), nullable=False, index=True)
+    client_ip = db.Column(db.String(45), nullable=True)        # client IP that triggered the concern
+    reason = db.Column(db.Text, nullable=False)                 # reason provided by the requester
+    detection_info = db.Column(db.Text, nullable=True)          # copied from alert / log description
+    requested_by = db.Column(db.String(100), nullable=False)    # username of analyst who submitted
+    requested_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    reviewed_by = db.Column(db.String(100), nullable=True)      # username of admin who reviewed
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='PENDING', index=True)  # PENDING, APPROVED, REJECTED
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'domain': self.domain,
+            'client_ip': self.client_ip or '',
+            'reason': self.reason,
+            'detection_info': self.detection_info or '',
+            'requested_by': self.requested_by,
+            'requested_at': self.requested_at.strftime('%Y-%m-%d %H:%M:%S') if self.requested_at else '',
+            'requested_at_display': self.requested_at.strftime('%b %d, %Y %I:%M %p') if self.requested_at else '',
+            'reviewed_by': self.reviewed_by or '',
+            'reviewed_at': self.reviewed_at.strftime('%Y-%m-%d %H:%M:%S') if self.reviewed_at else '',
+            'rejection_reason': self.rejection_reason or '',
+            'status': self.status
+        }
+
+
+class WebPortalSession(BaseModel):
+    """
+    Tracks every authenticated user's web portal access session.
+    Records IP address, browser/device info, pages visited, role, and heartbeat
+    for real-time visibility in the Admin/Analyst panel.
+    Session is considered ACTIVE if last_heartbeat is within the last 2 minutes.
+    """
+    __tablename__ = 'web_portal_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    username = db.Column(db.String(80), nullable=False, index=True)
+    role_name = db.Column(db.String(50), nullable=False, default='Viewer')
+    ip_address = db.Column(db.String(45), nullable=False, index=True)
+    user_agent = db.Column(db.String(512), nullable=True)
+    current_page = db.Column(db.String(255), nullable=True, default='/')
+    started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_heartbeat = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+
+    user = db.relationship('User', backref='portal_sessions', lazy=True)
+
+    def to_dict(self):
+        from datetime import datetime as dt
+        now = dt.utcnow()
+        delta = now - self.last_heartbeat if self.last_heartbeat else None
+        online = self.is_active and delta is not None and delta.total_seconds() < 120
+
+        # Parse browser name from user agent
+        ua = self.user_agent or ''
+        if 'Edg/' in ua or 'Edge/' in ua:
+            browser = 'Edge'
+        elif 'OPR/' in ua or 'Opera' in ua:
+            browser = 'Opera'
+        elif 'Chrome/' in ua and 'Safari/' in ua:
+            browser = 'Chrome'
+        elif 'Firefox/' in ua:
+            browser = 'Firefox'
+        elif 'Safari/' in ua:
+            browser = 'Safari'
+        else:
+            browser = 'Unknown Browser'
+
+        # Parse OS from user agent
+        if 'Windows NT' in ua:
+            os_name = 'Windows'
+        elif 'Mac OS X' in ua:
+            os_name = 'macOS'
+        elif 'Linux' in ua:
+            os_name = 'Linux'
+        elif 'Android' in ua:
+            os_name = 'Android'
+        elif 'iPhone' in ua or 'iPad' in ua:
+            os_name = 'iOS'
+        else:
+            os_name = 'Unknown OS'
+
+        # Format session duration
+        duration_secs = int((now - self.started_at).total_seconds()) if self.started_at else 0
+        duration_str = f"{duration_secs // 3600:02d}:{(duration_secs % 3600) // 60:02d}:{duration_secs % 60:02d}"
+
+        return {
+            'id': self.id,
+            'session_token': self.session_token,
+            'user_id': self.user_id,
+            'username': self.username,
+            'role_name': self.role_name,
+            'ip_address': self.ip_address,
+            'browser': browser,
+            'os': os_name,
+            'current_page': self.current_page or '/',
+            'started_at': self.started_at.strftime('%Y-%m-%d %H:%M:%S') if self.started_at else '',
+            'started_at_display': self.started_at.strftime('%b %d, %Y %I:%M %p') if self.started_at else '',
+            'last_heartbeat': self.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S') if self.last_heartbeat else '',
+            'last_seen_ago': f"{int(delta.total_seconds())}s ago" if delta else 'Unknown',
+            'session_duration': duration_str,
+            'is_online': online,
+            'status': 'Online' if online else 'Offline'
+        }
+
+

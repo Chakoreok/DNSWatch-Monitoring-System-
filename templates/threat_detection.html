@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}DNSWatch - Threat Detection{% endblock %}
-{% block header_title %}Threat Detection{% endblock %}
-{% block header_subtitle %}Manage detection rules and malicious domains used to detect suspicious DNS requests.{% endblock %}
+{% block title %}DNSWatch - Threat Detection &amp; Rule Engine{% endblock %}
+{% block header_title %}Threat Detection Engine{% endblock %}
+{% block header_subtitle %}Manage heuristic detection rules, malicious domain feeds, and query rate limiting.{% endblock %}
 
 {% block content %}
 <!-- Threat Summary Row -->
@@ -14,7 +14,9 @@
     <div class="stat-content">
       <div class="stat-label">Malicious Domains</div>
       <div class="stat-value" id="threat-cnt-malicious">0</div>
-      <div class="stat-subtext">Domains in list</div>
+      <div class="stat-subtext down">
+        <i class="fa-solid fa-ban"></i> <span>Enforced blacklists</span>
+      </div>
     </div>
   </div>
 
@@ -25,7 +27,9 @@
     <div class="stat-content">
       <div class="stat-label">Domain Rules</div>
       <div class="stat-value" id="threat-cnt-rules">0</div>
-      <div class="stat-subtext">Active rules</div>
+      <div class="stat-subtext warn">
+        <i class="fa-solid fa-filter"></i> <span>Pattern &amp; Keyword rules</span>
+      </div>
     </div>
   </div>
 
@@ -36,35 +40,65 @@
     <div class="stat-content">
       <div class="stat-label">Frequency Rule</div>
       <div class="stat-value" id="threat-cnt-freq">1</div>
-      <div class="stat-subtext">Active rule</div>
+      <div class="stat-subtext up">
+        <i class="fa-solid fa-stopwatch"></i> <span>Query burst rate-limiter</span>
+      </div>
     </div>
   </div>
 
   <div class="stat-card">
     <div class="stat-icon green">
-      <i class="fa-solid fa-shield"></i>
+      <div class="stat-icon-inner"><i class="fa-solid fa-shield-halved"></i></div>
     </div>
     <div class="stat-content">
       <div class="stat-label">Threats Detected Today</div>
       <div class="stat-value" id="threat-cnt-today">0</div>
-      <div class="stat-subtext">Total alerts triggered</div>
+      <div class="stat-subtext up">
+        <i class="fa-solid fa-circle-check"></i> <span>Alerts logged today</span>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- =========================================================================
-     Section 1: Malicious Domain List
+     Interactive Threat Detection Sandbox / Tester
+     ========================================================================= -->
+<div class="rule-tester-card">
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+    <div>
+      <h3 style="font-size: 15px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-flask" style="color: var(--brand-primary);"></i> Domain Rule Testing Sandbox
+      </h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+        Instantly evaluate any domain against active blacklist entries, TLDs, and keyword rules.
+      </p>
+    </div>
+  </div>
+  <div class="rule-tester-input-group">
+    <div class="search-box" style="flex: 1;">
+      <i class="fa-solid fa-globe"></i>
+      <input type="text" id="sandbox-domain-input" placeholder="Enter test domain (e.g. login-verify-security.xyz or malicious-c2.net)..." onkeydown="if(event.key==='Enter') testDomainAgainstRules()">
+    </div>
+    <button class="btn btn-primary" onclick="testDomainAgainstRules()">
+      <i class="fa-solid fa-play"></i> Run Test
+    </button>
+  </div>
+  <div id="sandbox-result-box" style="display: none; margin-top: 14px; padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px;"></div>
+</div>
+
+<!-- =========================================================================
+     Section 1: Malicious Domain Feed (Blacklist)
      ========================================================================= -->
 <div class="card" style="margin-bottom: 24px;">
   <div class="card-header">
     <div class="card-header-left">
-      <h3>1. Malicious Domain List</h3>
-      <p>Domains in this list will be classified as suspicious and the request can be blocked.</p>
+      <h3><i class="fa-solid fa-skull-crossbones" style="color: var(--brand-danger);"></i> 1. Malicious Domain Feed</h3>
+      <p>Explicitly blacklisted domains classified as high-risk threats.</p>
     </div>
     <div class="toolbar-right">
-      <div class="search-box" style="min-width: 200px;">
+      <div class="search-box" style="min-width: 220px;">
         <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="text" id="malicious-search-input" placeholder="Search domain..." oninput="debounceMaliciousSearch()">
+        <input type="text" id="malicious-search-input" placeholder="Search domain feed..." oninput="debounceMaliciousSearch()">
       </div>
       <button class="btn btn-primary" onclick="openAddDomainModal()">
         <i class="fa-solid fa-plus"></i> Add Domain
@@ -86,8 +120,9 @@
       </thead>
       <tbody id="malicious-domains-tbody">
         <tr>
-          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
-            Loading malicious domains...
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 35px;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 20px; color: var(--brand-primary); margin-bottom: 8px;"></i>
+            <div>Loading malicious domain feed...</div>
           </td>
         </tr>
       </tbody>
@@ -96,16 +131,16 @@
 </div>
 
 <!-- =========================================================================
-     Section 2: Domain Rules (Basic Domain Rule Checking)
+     Section 2: Domain Heuristic & Pattern Rules
      ========================================================================= -->
 <div class="card" style="margin-bottom: 24px;">
   <div class="card-header">
     <div class="card-header-left">
-      <h3>2. Domain Rules (Basic Domain Rule Checking)</h3>
-      <p>Detects suspicious domains based on keywords, TLDs, and patterns.</p>
+      <h3><i class="fa-solid fa-network-wired" style="color: var(--brand-warning);"></i> 2. Domain Heuristic &amp; Pattern Rules</h3>
+      <p>Detects phishing keywords, suspicious TLDs, and regex patterns.</p>
     </div>
     <div class="toolbar-right">
-      <div class="search-box" style="min-width: 200px;">
+      <div class="search-box" style="min-width: 220px;">
         <i class="fa-solid fa-magnifying-glass"></i>
         <input type="text" id="rules-search-input" placeholder="Search rule..." oninput="debounceRulesSearch()">
       </div>
@@ -130,8 +165,9 @@
       </thead>
       <tbody id="domain-rules-tbody">
         <tr>
-          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">
-            Loading detection rules...
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 35px;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 20px; color: var(--brand-primary); margin-bottom: 8px;"></i>
+            <div>Loading detection rules...</div>
           </td>
         </tr>
       </tbody>
@@ -140,40 +176,40 @@
 </div>
 
 <!-- =========================================================================
-     Section 3: DNS Query Frequency Rule
+     Section 3: DNS Query Frequency / Burst Limiter
      ========================================================================= -->
 <div class="card">
   <div class="card-header">
     <div class="card-header-left">
-      <h3>3. DNS Query Frequency Rule</h3>
-      <p>Triggers an alert when a client exceeds the allowed number of DNS queries within the set time window.</p>
+      <h3><i class="fa-solid fa-gauge-high" style="color: var(--brand-info);"></i> 3. DNS Query Frequency / Burst Rate Limiter</h3>
+      <p>Triggers when a single client IP exceeds query thresholds in the specified time window.</p>
     </div>
     <button class="btn btn-outline" onclick="openEditFreqModal()">
-      <i class="fa-regular fa-pen-to-square"></i> Edit Rule
+      <i class="fa-regular fa-pen-to-square"></i> Edit Configuration
     </button>
   </div>
   <div class="card-body">
-    <div class="frequency-card-details">
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 18px;">
       <div>
-        <div class="freq-item-label">Threshold (Queries)</div>
-        <div class="freq-item-val" id="freq-val-threshold">100 queries</div>
+        <div style="font-size: 11.5px; color: var(--text-muted);">Query Threshold</div>
+        <div style="font-size: 16px; font-weight: 700; color: var(--text-main); margin-top: 4px; font-family: var(--font-mono);" id="freq-val-threshold">100 queries</div>
       </div>
       <div>
-        <div class="freq-item-label">Time Window</div>
-        <div class="freq-item-val" id="freq-val-window">60 seconds</div>
+        <div style="font-size: 11.5px; color: var(--text-muted);">Time Window</div>
+        <div style="font-size: 16px; font-weight: 700; color: var(--text-main); margin-top: 4px; font-family: var(--font-mono);" id="freq-val-window">60 seconds</div>
       </div>
       <div>
-        <div class="freq-item-label">Action</div>
-        <div class="freq-item-val" id="freq-val-action"><span class="badge badge-suspicious">Alert</span></div>
+        <div style="font-size: 11.5px; color: var(--text-muted);">Trigger Action</div>
+        <div style="margin-top: 4px;" id="freq-val-action"><span class="badge badge-suspicious">Alert</span></div>
       </div>
       <div>
-        <div class="freq-item-label">Status</div>
-        <div class="freq-item-val" id="freq-val-status"><span class="badge badge-safe">Active</span></div>
+        <div style="font-size: 11.5px; color: var(--text-muted);">Engine Status</div>
+        <div style="margin-top: 4px;" id="freq-val-status"><span class="badge badge-safe">Active</span></div>
       </div>
     </div>
-    <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 14px; display: flex; align-items: center; gap: 6px;">
-      <i class="fa-solid fa-circle-info" style="color: var(--primary);"></i>
-      <span>When triggered, the system will generate a security alert and flag the DNS request as suspicious or blocked.</span>
+    <div style="font-size: 12px; color: var(--text-muted); margin-top: 14px; display: flex; align-items: center; gap: 8px;">
+      <i class="fa-solid fa-circle-info" style="color: var(--brand-primary);"></i>
+      <span>Frequency inspection detects potential DNS tunneling, DoS query bursts, and automated bot scanners.</span>
     </div>
   </div>
 </div>
@@ -186,40 +222,41 @@
 <div class="modal-backdrop" id="modal-add-domain">
   <div class="modal-dialog">
     <div class="modal-header">
-      <div class="modal-title">Add Malicious Domain</div>
+      <div class="modal-title"><i class="fa-solid fa-bug" style="color: var(--brand-danger);"></i> Add Malicious Domain</div>
       <button class="modal-close" onclick="closeModal('modal-add-domain')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <form id="form-add-domain" onsubmit="submitAddDomain(event)">
         <div class="form-group">
           <label class="form-label">Domain Name</label>
-          <input type="text" class="form-control" id="input-domain-name" placeholder="e.g. malicious-site.net" required>
+          <input type="text" class="form-control" id="input-domain-name" placeholder="e.g. evil-phishing-site.xyz" required style="font-family: var(--font-mono);">
         </div>
         <div class="form-group">
-          <label class="form-label">Category</label>
+          <label class="form-label">Threat Category</label>
           <select class="form-control" id="input-domain-cat">
             <option value="Malware / Phishing">Malware / Phishing</option>
-            <option value="C2 Infrastructure">C2 Infrastructure</option>
+            <option value="C2 Infrastructure">Command &amp; Control (C2)</option>
             <option value="Credential Harvesting">Credential Harvesting</option>
             <option value="Spyware / Adware">Spyware / Adware</option>
-            <option value="DNS Tunneling">DNS Tunneling</option>
+            <option value="DNS Tunneling">DNS Tunneling / Data Exfiltration</option>
+            <option value="Cryptomining">Cryptomining</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Severity</label>
+          <label class="form-label">Severity Level</label>
           <select class="form-control" id="input-domain-sev">
-            <option value="HIGH">HIGH</option>
-            <option value="MEDIUM">MEDIUM</option>
-            <option value="LOW">LOW</option>
+            <option value="HIGH">HIGH (Immediate Block / Alert)</option>
+            <option value="MEDIUM">MEDIUM (Suspicious)</option>
+            <option value="LOW">LOW (Informational)</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Description (Optional)</label>
-          <textarea class="form-control" id="input-domain-desc" placeholder="Notes about this domain..."></textarea>
+          <label class="form-label">Threat Context / Description (Optional)</label>
+          <textarea class="form-control" id="input-domain-desc" placeholder="Evidence notes or threat actor attribution..."></textarea>
         </div>
         <div class="modal-footer" style="padding: 14px 0 0; margin-top: 20px;">
           <button type="button" class="btn btn-outline" onclick="closeModal('modal-add-domain')">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Domain</button>
+          <button type="submit" class="btn btn-danger"><i class="fa-solid fa-plus"></i> Add Domain to Blacklist</button>
         </div>
       </form>
     </div>
@@ -230,7 +267,7 @@
 <div class="modal-backdrop" id="modal-add-rule">
   <div class="modal-dialog">
     <div class="modal-header">
-      <div class="modal-title" id="modal-rule-title">Add Domain Rule</div>
+      <div class="modal-title" id="modal-rule-title"><i class="fa-solid fa-filter" style="color: var(--brand-warning);"></i> Add Domain Heuristic Rule</div>
       <button class="modal-close" onclick="closeModal('modal-add-rule')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
@@ -238,20 +275,20 @@
         <input type="hidden" id="input-rule-id">
         <div class="form-group">
           <label class="form-label">Rule Name</label>
-          <input type="text" class="form-control" id="input-rule-name" placeholder="e.g. Suspicious Keywords" required>
+          <input type="text" class="form-control" id="input-rule-name" placeholder="e.g. Phishing Keyword Detection" required>
         </div>
         <div class="form-group">
           <label class="form-label">Rule Type</label>
           <select class="form-control" id="input-rule-type">
             <option value="KEYWORD">Keyword Match (comma separated)</option>
-            <option value="TLD_BLACKLIST">TLD Blacklist (e.g. .xyz, .top)</option>
-            <option value="PATTERN">Wildcard Pattern (e.g. @*, *login*)</option>
+            <option value="TLD_BLACKLIST">TLD Blacklist (e.g. .xyz, .top, .tk)</option>
+            <option value="PATTERN">Wildcard Pattern (e.g. *login*, *secure*)</option>
             <option value="REGEX">Regular Expression</option>
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Pattern / Condition</label>
-          <input type="text" class="form-control" id="input-rule-pattern" placeholder="e.g. login, verify, account, secure" required>
+          <input type="text" class="form-control" id="input-rule-pattern" placeholder="e.g. login, verify, account, secure" required style="font-family: var(--font-mono);">
         </div>
         <div class="form-group">
           <label class="form-label">Action</label>
@@ -270,7 +307,7 @@
         </div>
         <div class="modal-footer" style="padding: 14px 0 0; margin-top: 20px;">
           <button type="button" class="btn btn-outline" onclick="closeModal('modal-add-rule')">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="btn-save-rule">Save Rule</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-rule"><i class="fa-solid fa-floppy-disk"></i> Save Rule</button>
         </div>
       </form>
     </div>
@@ -281,29 +318,29 @@
 <div class="modal-backdrop" id="modal-edit-freq">
   <div class="modal-dialog">
     <div class="modal-header">
-      <div class="modal-title">Edit DNS Query Frequency Rule</div>
+      <div class="modal-title"><i class="fa-solid fa-gauge-high" style="color: var(--brand-info);"></i> Configure Frequency Limiter</div>
       <button class="modal-close" onclick="closeModal('modal-edit-freq')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <form id="form-edit-freq" onsubmit="submitFrequencyRule(event)">
         <div class="form-group">
-          <label class="form-label">Query Threshold</label>
+          <label class="form-label">Query Threshold (Count)</label>
           <input type="number" class="form-control" id="input-freq-threshold" min="5" max="10000" value="100" required>
-          <small style="color: var(--text-muted); font-size: 11px;">Maximum DNS queries allowed from a single client within window.</small>
+          <small style="color: var(--text-muted); font-size: 11.5px;">Max DNS queries permitted per client IP within the time window.</small>
         </div>
         <div class="form-group">
           <label class="form-label">Time Window (Seconds)</label>
           <input type="number" class="form-control" id="input-freq-window" min="5" max="3600" value="60" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Action</label>
+          <label class="form-label">Trigger Action</label>
           <select class="form-control" id="input-freq-action">
             <option value="Alert">Alert (Flag as SUSPICIOUS)</option>
             <option value="Block">Block (Classify as BLOCKED)</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Rule Status</label>
+          <label class="form-label">Limiter State</label>
           <select class="form-control" id="input-freq-status">
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
@@ -311,7 +348,7 @@
         </div>
         <div class="modal-footer" style="padding: 14px 0 0; margin-top: 20px;">
           <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit-freq')">Cancel</button>
-          <button type="submit" class="btn btn-primary">Update Configuration</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Update Configuration</button>
         </div>
       </form>
     </div>

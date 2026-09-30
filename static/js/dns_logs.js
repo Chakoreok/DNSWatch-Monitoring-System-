@@ -44,6 +44,9 @@ async function fetchLogs(page = 1, isBackground = false) {
   if (qtype && qtype !== 'ALL') url.searchParams.set('query_type', qtype);
   if (dateVal) url.searchParams.set('date', dateVal);
 
+  const refreshIcon = document.querySelector('.toolbar-right button i.fa-rotate-right');
+  if (refreshIcon && !isBackground) refreshIcon.classList.add('fa-spin');
+
   try {
     const res = await fetch(url);
     const data = await res.json();
@@ -55,24 +58,39 @@ async function fetchLogs(page = 1, isBackground = false) {
         const domain = log.domain || log.query_domain;
         const iconHtml = getDomainIcon(domain);
         const badgeHtml = getStatusBadge(log.status);
+        const qtypeBadge = typeof getQueryTypeBadge === 'function' ? getQueryTypeBadge(log.query_type) : `<span class="qtype-badge qtype-A">${log.query_type || 'A'}</span>`;
         const respIp = log.response_ip && log.response_ip !== '-' ? log.response_ip : '-';
-        const infoStr = log.info || log.detection_reason || 'Standard query';
+        const clientIp = log.client_ip || 'Unknown';
+        const infoStr = log.info || log.detection_reason || 'Normal resolution';
+        const actionHtml = typeof renderActionCell === 'function' ? 
+          renderActionCell(domain, log.client_ip, infoStr, log.status) : '-';
 
         return `
           <tr>
-            <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap;">${timeStr}</td>
-            <td style="font-family: monospace; font-size: 12px; font-weight: 500;">${log.client_ip || 'Unknown'}</td>
+            <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap; font-family: var(--font-mono);">${timeStr}</td>
+            <td>
+              <span class="ip-chip" onclick="copyToClipboard('${clientIp}', 'Client IP')" title="Click to copy IP">
+                ${clientIp} <i class="fa-regular fa-copy"></i>
+              </span>
+            </td>
             <td>
               <div class="domain-cell">
                 <span class="domain-icon">${iconHtml}</span>
-                <span style="font-weight: 500;">${domain}</span>
+                <span style="font-weight: 600; cursor: pointer;" onclick="copyToClipboard('${domain}', 'Domain')" title="Click to copy">${domain}</span>
               </div>
             </td>
-            <td><span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;">${log.query_type || 'A'}</span></td>
-            <td style="font-family: monospace; font-size: 12px; color: ${respIp !== '-' ? 'var(--text-main)' : 'var(--text-light)'};">${respIp}</td>
-            <td style="color: var(--text-muted); font-size: 11.5px;">${log.ttl || 300}</td>
+            <td>${qtypeBadge}</td>
+            <td>
+              ${respIp !== '-' ? `
+                <span class="ip-chip" onclick="copyToClipboard('${respIp}', 'Response IP')" title="Click to copy IP">
+                  ${respIp} <i class="fa-regular fa-copy"></i>
+                </span>
+              ` : '<span style="color: var(--text-light); font-family: var(--font-mono);">-</span>'}
+            </td>
+            <td style="color: var(--text-muted); font-size: 11.5px; font-family: var(--font-mono);">${log.ttl || 300}s</td>
             <td>${badgeHtml}</td>
-            <td style="color: var(--text-muted); font-size: 11.5px;">${infoStr}</td>
+            <td style="color: var(--text-muted); font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${infoStr}">${infoStr}</td>
+            <td style="white-space: nowrap;">${actionHtml}</td>
           </tr>
         `;
       }).join('');
@@ -81,12 +99,13 @@ async function fetchLogs(page = 1, isBackground = false) {
     } else {
       const msg = globalMonitoringActive ?
         'Waiting for DNS requests... No log entries match current filter.' :
-        'Monitoring is currently Inactive. Existing logs remain saved. Click <strong>Start Monitoring</strong> to capture live traffic.';
+        'Monitoring is currently Inactive. Existing logs remain saved. Click <strong>Start Sniffer</strong> to capture live traffic.';
         
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 35px;">
-            ${msg}
+          <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 40px;">
+            <i class="fa-solid fa-database" style="font-size: 24px; margin-bottom: 8px; color: var(--text-light);"></i>
+            <div>${msg}</div>
           </td>
         </tr>
       `;
@@ -95,6 +114,8 @@ async function fetchLogs(page = 1, isBackground = false) {
     }
   } catch (err) {
     if (!isBackground) console.error('Error fetching DNS logs:', err);
+  } finally {
+    if (refreshIcon) refreshIcon.classList.remove('fa-spin');
   }
 }
 

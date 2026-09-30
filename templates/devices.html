@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}DNSWatch - Devices{% endblock %}
-{% block header_title %}Devices{% endblock %}
-{% block header_subtitle %}List of devices connected to the network and their DNS activity.{% endblock %}
+{% block title %}DNSWatch - Connected Devices &amp; Clients{% endblock %}
+{% block header_title %}Connected Devices{% endblock %}
+{% block header_subtitle %}Inventory of all client endpoints — DNS-captured devices and web portal visitors.{% endblock %}
 
 {% block content %}
 <!-- Devices Stat Cards -->
@@ -14,7 +14,7 @@
     <div class="stat-content">
       <div class="stat-label">Total Devices</div>
       <div class="stat-value" id="dev-cnt-total">0</div>
-      <div class="stat-subtext">Active devices in the network</div>
+      <div class="stat-subtext up">All discovered endpoints</div>
     </div>
   </div>
 
@@ -25,18 +25,18 @@
     <div class="stat-content">
       <div class="stat-label">Active Devices</div>
       <div class="stat-value" id="dev-cnt-active">0</div>
-      <div class="stat-subtext up">Currently active</div>
+      <div class="stat-subtext up">Broadcasting traffic</div>
     </div>
   </div>
 
   <div class="stat-card">
-    <div class="stat-icon amber">
-      <i class="fa-solid fa-power-off"></i>
+    <div class="stat-icon" style="background: rgba(139,92,246,0.15);">
+      <i class="fa-solid fa-eye" style="color: var(--brand-purple);"></i>
     </div>
     <div class="stat-content">
-      <div class="stat-label">Inactive Devices</div>
-      <div class="stat-value" id="dev-cnt-inactive">0</div>
-      <div class="stat-subtext">Not seen recently</div>
+      <div class="stat-label">Web Portal Visitors</div>
+      <div class="stat-value" id="dev-cnt-portal" style="color: var(--brand-purple);">0</div>
+      <div class="stat-subtext">Accessed this web system</div>
     </div>
   </div>
 
@@ -47,7 +47,7 @@
     <div class="stat-content">
       <div class="stat-label">Total DNS Queries</div>
       <div class="stat-value" id="dev-cnt-queries">0</div>
-      <div class="stat-subtext">From all devices</div>
+      <div class="stat-subtext">Aggregated across all clients</div>
     </div>
   </div>
 </div>
@@ -60,21 +60,33 @@
       <div class="toolbar-left">
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="text" id="devices-search-input" placeholder="Search device name, IP or MAC address..." oninput="debounceDevicesSearch()">
+          <input type="text" id="devices-search-input" placeholder="Search device hostname, IP, MAC address..." oninput="debounceDevicesSearch()">
         </div>
 
         <select class="filter-select" id="devices-status-filter" onchange="fetchDevices()">
-          <option value="ALL">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
+          <option value="ALL">All Device States</option>
+          <option value="Active">Active Endpoints</option>
+          <option value="Inactive">Inactive Endpoints</option>
+        </select>
+
+        <select class="filter-select" id="devices-type-filter" onchange="fetchDevices()">
+          <option value="">All Types</option>
+          <option value="portal">🌐 Portal Visitors Only</option>
+          <option value="dns">📡 DNS Captured Only</option>
         </select>
       </div>
 
       <div class="toolbar-right">
-        <button class="btn btn-outline" onclick="fetchDevices()">
+        <button class="btn btn-outline" onclick="fetchDevices()" title="Refresh Device List">
           <i class="fa-solid fa-rotate-right"></i> Refresh
         </button>
       </div>
+    </div>
+
+    <!-- Legend -->
+    <div style="display:flex;gap:20px;padding:8px 0 4px;font-size:12px;color:var(--text-muted);flex-wrap:wrap;">
+      <span><i class="fa-solid fa-eye" style="color:var(--brand-purple);margin-right:4px;"></i> Web Portal Visitor (accessed this web system)</span>
+      <span><i class="fa-solid fa-laptop" style="color:var(--brand-primary);margin-right:4px;"></i> DNS-Captured Device (detected via packet sniffing)</span>
     </div>
 
     <!-- Table -->
@@ -82,10 +94,10 @@
       <table class="custom-table" id="table-devices">
         <thead>
           <tr>
-            <th>Device Name</th>
+            <th>Device Hostname</th>
             <th>IP Address</th>
             <th>MAC Address</th>
-            <th>Device Type</th>
+            <th>Type &amp; OS</th>
             <th>DNS Queries</th>
             <th>Last Seen</th>
             <th>Status</th>
@@ -95,8 +107,8 @@
         <tbody id="devices-tbody">
           <tr>
             <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 40px;">
-              <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px;"></i>
-              <div>Loading observed client devices...</div>
+              <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 24px; color: var(--brand-primary); margin-bottom: 10px;"></i>
+              <div>Discovering client devices...</div>
             </td>
           </tr>
         </tbody>
@@ -105,6 +117,9 @@
 
     <div class="pagination-container">
       <div id="devices-counter-info">Showing 0 devices</div>
+      <div style="font-size:11.5px;color:var(--text-light);display:flex;align-items:center;gap:6px;">
+        <span class="status-dot active" style="width:7px;height:7px;"></span> Auto-refresh (10s)
+      </div>
     </div>
   </div>
 </div>
@@ -113,3 +128,4 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/devices.js') }}"></script>
 {% endblock %}
+

@@ -31,3 +31,10 @@ class Config:
     # Frequency Rule Defaults
     DEFAULT_FREQUENCY_THRESHOLD = int(os.getenv("DEFAULT_FREQUENCY_THRESHOLD", "100"))
     DEFAULT_FREQUENCY_WINDOW = int(os.getenv("DEFAULT_FREQUENCY_WINDOW", "60"))
+
+    # ── Proxy / ngrok compatibility ────────────────────────────────────────
+    # Allows Flask sessions to work correctly behind ngrok's HTTPS proxy.
+    SESSION_COOKIE_SECURE = False        # ngrok handles HTTPS termination
+    SESSION_COOKIE_SAMESITE = "Lax"     # Allow cross-origin session cookie
+    SESSION_COOKIE_HTTPONLY = True
+

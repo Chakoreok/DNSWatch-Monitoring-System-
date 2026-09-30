@@ -8,7 +8,7 @@ import pymysql
 from flask import Flask
 from config import Config
 from database import db
-from models import Role, User, DetectionRule, MaliciousDomain, FrequencyRuleConfig, MonitoringSession, DNSLog, SecurityAlert, Device, WebsiteActivity
+from models import Role, User, DetectionRule, MaliciousDomain, FrequencyRuleConfig, MonitoringSession, DNSLog, SecurityAlert, Device, WebsiteActivity, ManualBlockRule, BlockRequest
 from datetime import datetime, timedelta
 
 def migrate_missing_columns():

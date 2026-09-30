@@ -1,32 +1,44 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}DNSWatch: Real-Time DNS Monitoring & Alert System{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_icon.png') }}">
   
   <!-- Modern Font & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  
+  <!-- Theme Init Script (Avoids Flash of Unstyled Content) -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('dnswatch_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+  </script>
+  
   <!-- Chart.js for Reports & Dashboard visualizations -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<body data-monitoring-active="{{ 'true' if monitoring.is_running else 'false' }}">
+</head>
+<body data-monitoring-active="{{ 'true' if monitoring.is_running else 'false' }}"
+      data-user-role="{{ current_user.role.name if (current_user.is_authenticated and current_user.role) else 'Viewer' }}"
+      data-username="{{ current_user.username if current_user.is_authenticated else '' }}">
+  
   <div class="app-container">
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <a href="{{ url_for('views.dashboard_page') }}" class="brand-logo">
-          <div class="brand-logo-icon">
-            <i class="fa-solid fa-shield-halved"></i>
-          </div>
-          <div>
-            <div class="brand-title">DNSWatch</div>
-            <div class="brand-subtitle">DNS SECURITY MONITORING SYSTEM</div>
-          </div>
+        <a href="{{ url_for('views.dashboard_page') }}" class="brand-logo" title="DNSWatch - Real-Time DNS Security">
+          <img src="{{ url_for('static', filename='img/logo_tight.png') }}" alt="DNSWatch" class="brand-logo-img">
         </a>
       </div>
       
       <nav class="sidebar-nav">
+        <div class="nav-section-title">Overview</div>
         <a href="{{ url_for('views.dashboard_page') }}" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
           <i class="fa-solid fa-gauge-high"></i>
           <span>Dashboard</span>
@@ -35,6 +47,8 @@
           <i class="fa-solid fa-globe"></i>
           <span>Website Activity</span>
         </a>
+
+        <div class="nav-section-title">Network &amp; Threats</div>
         <a href="{{ url_for('views.devices_page') }}" class="nav-link {% if active_page == 'devices' %}active{% endif %}">
           <i class="fa-solid fa-laptop"></i>
           <span>Devices</span>
@@ -44,19 +58,21 @@
           <span>DNS / Network Logs</span>
         </a>
         <a href="{{ url_for('views.security_alerts_page') }}" class="nav-link {% if active_page == 'security-alerts' %}active{% endif %}">
-          <i class="fa-solid fa-bell"></i>
+          <i class="fa-solid fa-shield-halved"></i>
           <span>Security Alerts</span>
         </a>
         <a href="{{ url_for('views.threat_detection_page') }}" class="nav-link {% if active_page == 'threat-detection' %}active{% endif %}">
           <i class="fa-solid fa-triangle-exclamation"></i>
           <span>Threat Detection</span>
         </a>
+
+        <div class="nav-section-title">Intelligence &amp; Config</div>
         <a href="{{ url_for('views.reports_page') }}" class="nav-link {% if active_page == 'reports' %}active{% endif %}">
           <i class="fa-solid fa-chart-pie"></i>
           <span>Reports</span>
         </a>
         <a href="{{ url_for('views.settings_page') }}" class="nav-link {% if active_page == 'settings' %}active{% endif %}">
-          <i class="fa-solid fa-gear"></i>
+          <i class="fa-solid fa-sliders"></i>
           <span>Settings</span>
         </a>
       </nav>
@@ -72,21 +88,21 @@
           </div>
           <button class="btn-monitoring-toggle {% if monitoring.is_running %}btn-stop{% else %}btn-start{% endif %}" id="btn-toggle-monitoring" onclick="toggleGlobalMonitoring()">
             {% if monitoring.is_running %}
-              <i class="fa-solid fa-stop"></i> <span>Stop Monitoring</span>
+              <i class="fa-solid fa-stop"></i> <span>Stop Sniffer</span>
             {% else %}
-              <i class="fa-solid fa-play"></i> <span>Start Monitoring</span>
+              <i class="fa-solid fa-play"></i> <span>Start Sniffer</span>
             {% endif %}
           </button>
         </div>
       </div>
     </aside>
 
-    <!-- Main Wrapper -->
+    <!-- Main Content Wrapper -->
     <div class="main-wrapper">
-      <!-- Top Header -->
+      <!-- Top Sticky Header -->
       <header class="top-header">
         <div class="header-left">
-          <button class="menu-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+          <button class="menu-toggle" onclick="toggleSidebar()" title="Toggle Navigation"><i class="fa-solid fa-bars"></i></button>
           <div class="header-title-group">
             <h1>{% block header_title %}Dashboard{% endblock %}</h1>
             <p>{% block header_subtitle %}Real-time overview of DNS activity and security status.{% endblock %}</p>
@@ -94,17 +110,30 @@
         </div>
         
         <div class="header-right">
+          <!-- Quick Search / Command Palette Trigger -->
+          <button class="header-action-btn" onclick="openCommandPalette()" title="Quick Command / Search (Ctrl+K)">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+
+          <!-- Theme Switcher -->
+          <button class="header-action-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Switch Light/Dark Mode">
+            <i class="fa-solid fa-sun" id="theme-icon"></i>
+          </button>
+
+          <!-- Sniffer Live Beacon -->
           <div class="live-badge {% if monitoring.is_running %}active{% else %}inactive{% endif %}" id="header-status-badge">
             <span class="status-dot {% if monitoring.is_running %}active{% endif %}" id="header-status-dot"></span>
             <span id="header-status-text">{% if monitoring.is_running %}Monitoring Active{% else %}Monitoring Inactive{% endif %}</span>
           </div>
           
-          <a href="{{ url_for('views.security_alerts_page') }}" class="notification-btn" title="View Alerts">
+          <!-- Alert Notification Bell -->
+          <a href="{{ url_for('views.security_alerts_page') }}" class="header-action-btn" title="View Security Alerts">
             <i class="fa-regular fa-bell"></i>
             <span class="notification-badge" id="header-alert-count">0</span>
           </a>
           
-          <a href="{{ url_for('views.settings_page') }}" class="user-profile" title="User Settings">
+          <!-- User Profile Chip -->
+          <a href="{{ url_for('views.settings_page') }}" class="user-profile" title="Account & System Settings">
             <div class="user-avatar">
               <i class="fa-solid fa-user-shield"></i>
             </div>
@@ -114,8 +143,9 @@
             </div>
           </a>
           
-          <a href="{{ url_for('auth.logout') }}" class="notification-btn" title="Sign Out / Logout" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.25);">
-            <i class="fa-solid fa-right-from-bracket"></i>
+          <!-- Logout Button -->
+          <a href="{{ url_for('auth.logout') }}" class="header-action-btn" title="Sign Out / Logout" style="color: #f87171;">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
           </a>
         </div>
       </header>
@@ -127,8 +157,184 @@
     </div>
   </div>
 
+  <!-- ========================================================
+       Global: Command Palette (Ctrl+K)
+       ======================================================== -->
+  <div class="cmd-palette-backdrop" id="modal-cmd-palette" onclick="handleCmdBackdropClick(event)">
+    <div class="cmd-palette">
+      <div class="cmd-search-input-wrap">
+        <i class="fa-solid fa-terminal"></i>
+        <input type="text" class="cmd-search-input" id="cmd-input" placeholder="Type a command or jump to page..." autocomplete="off">
+        <span class="cmd-item-shortcut">ESC</span>
+      </div>
+      <div class="cmd-results-list" id="cmd-results">
+        <a href="{{ url_for('views.dashboard_page') }}" class="cmd-item">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Dashboard Overview</span>
+          <span class="cmd-item-shortcut">Jump</span>
+        </a>
+        <a href="{{ url_for('views.website_activity_page') }}" class="cmd-item">
+          <i class="fa-solid fa-globe"></i>
+          <span>Website Activity Logs</span>
+          <span class="cmd-item-shortcut">Jump</span>
+        </a>
+        <a href="{{ url_for('views.devices_page') }}" class="cmd-item">
+          <i class="fa-solid fa-laptop"></i>
+          <span>Connected Devices</span>
+          <span class="cmd-item-shortcut">Jump</span>
+        </a>
+        <a href="{{ url_for('views.dns_logs_page') }}" class="cmd-item">
+          <i class="fa-solid fa-network-wired"></i>
+          <span>DNS Query Logs</span>
+          <span class="cmd-item-shortcut">Jump</span>
+        </a>
+        <a href="{{ url_for('views.security_alerts_page') }}" class="cmd-item">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Security Incidents &amp; Alerts</span>
+          <span class="cmd-item-shortcut">Jump</span>
+        </a>
+        <a href="{{ url_for('views.threat_detection_page') }}" class="cmd-item">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Threat Detection Rules</span>
+          <span class="cmd-item-shortcut">Jump</span>
+        </a>
+        <a href="{{ url_for('views.reports_page') }}" class="cmd-item">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Analytics &amp; PDF/CSV Reports</span>
+          <span class="cmd-item-shortcut">Jump</span>
+        </a>
+        <a href="{{ url_for('views.settings_page') }}" class="cmd-item">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Settings &amp; DNS Sinkhole</span>
+          <span class="cmd-item-shortcut">Jump</span>
+        </a>
+      </div>
+      <div class="cmd-footer">
+        <span>Navigation: <kbd>↑</kbd> <kbd>↓</kbd> to navigate, <kbd>Enter</kbd> to select</span>
+        <span>DNSWatch SOC Engine</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Global Application Scripts -->
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/blocking.js') }}"></script>
   {% block scripts %}{% endblock %}
+
+  {% if current_user.is_authenticated %}
+  <!-- ============================================================
+       Web Portal Session Tracker — Auto-Register & Heartbeat
+       Tracks every authenticated user's web portal access for
+       Admin / Security Analyst visibility in real-time.
+       ============================================================ -->
+  <script>
+  (function() {
+    const PORTAL_PAGE = window.location.pathname;
+    const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+    let _hbTimer = null;
+
+    function _portalFetch(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify(body),
+        credentials: 'same-origin'
+      }).catch(() => {});
+    }
+
+    // Register session on page load
+    _portalFetch('/api/portal-sessions/register', { page: PORTAL_PAGE });
+
+    // Send heartbeat every 30s to stay marked as "Online"
+    _hbTimer = setInterval(function() {
+      _portalFetch('/api/portal-sessions/heartbeat', { page: window.location.pathname });
+    }, HEARTBEAT_INTERVAL);
+
+    // Mark session offline cleanly on tab/window close
+    window.addEventListener('beforeunload', function() {
+      clearInterval(_hbTimer);
+      // Use sendBeacon for reliability on page unload
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify({page: window.location.pathname})], {type: 'application/json'});
+        navigator.sendBeacon('/api/portal-sessions/heartbeat', blob);
+      }
+    });
+  })();
+  </script>
+  {% endif %}
+
+
+  <!-- ========================================================
+       Global: Request Block Modal (Security Analyst & Admin)
+       ======================================================== -->
+  <div class="modal-backdrop" id="modal-request-block">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-shield-halved" style="color:#f59e0b"></i> Request Domain Block</div>
+        <button class="modal-close" onclick="closeModal('modal-request-block')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Target Domain</label>
+          <input type="text" class="form-control" id="rbModal-domain" readonly style="font-family:var(--font-mono);font-weight:600;">
+        </div>
+        <div class="form-group" id="rbModal-ip-group">
+          <label class="form-label">Observed Client IP</label>
+          <input type="text" class="form-control" id="rbModal-clientip" readonly style="font-family:var(--font-mono);font-size:12px;">
+        </div>
+        <div class="form-group" id="rbModal-detinfo-group">
+          <label class="form-label">Detection / Alert Context</label>
+          <textarea class="form-control" id="rbModal-detinfo" rows="2" readonly style="font-size:12px;resize:none;"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason for Block Request <span style="color:var(--brand-danger)">*</span></label>
+          <textarea class="form-control" id="rbModal-reason" rows="3" placeholder="Describe why this domain should be blocked at DNS level..." required></textarea>
+        </div>
+        <div id="rbModal-feedback" style="font-size:12.5px;margin-top:8px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modal-request-block')">Cancel</button>
+        <button class="btn btn-primary" id="rbModal-submit-btn" onclick="submitBlockRequest()">
+          <i class="fa-solid fa-paper-plane"></i> Submit Request
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       Global: Direct Block Modal (Admin only)
+       ======================================================== -->
+  <div class="modal-backdrop" id="modal-direct-block">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-ban" style="color:#ef4444"></i> Block Domain</div>
+        <button class="modal-close" onclick="closeModal('modal-direct-block')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+          The domain and all its subdomains will be blocked immediately. The DNS Sinkhole must be running for network-level enforcement.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Domain to Block</label>
+          <input type="text" class="form-control" id="dbModal-domain" readonly style="font-family:var(--font-mono);font-weight:600;">
+        </div>
+        <div class="form-group" id="dbModal-ip-group">
+          <label class="form-label">Observed Client IP (Context)</label>
+          <input type="text" class="form-control" id="dbModal-clientip" readonly style="font-family:var(--font-mono);font-size:12px;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason (optional)</label>
+          <textarea class="form-control" id="dbModal-reason" rows="2" placeholder="e.g. Confirmed phishing C2 server"></textarea>
+        </div>
+        <div id="dbModal-feedback" style="font-size:12.5px;margin-top:8px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modal-direct-block')">Cancel</button>
+        <button class="btn btn-danger" id="dbModal-submit-btn" onclick="submitDirectBlock()">
+          <i class="fa-solid fa-ban"></i> Block Domain Now
+        </button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

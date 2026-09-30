@@ -26,9 +26,11 @@ wheels/
 # Virtual Environment
 .venv/
 
-# Environment Variables & Secrets
+# Environment Variables & Secrets — NEVER commit these
+.env
 .env.local
 .env.*.local
+*.env
 
 # IDE & Editor files
 .vscode/
@@ -41,3 +43,8 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# Database & logs
+*.db
+*.sqlite
+*.log

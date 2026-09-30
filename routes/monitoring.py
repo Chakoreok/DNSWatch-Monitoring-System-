@@ -89,3 +89,39 @@ def simulate_traffic():
         'status': status,
         'alert': alert
     })
+
+
+# ------------------------------------------------------------------
+# DNS Sinkhole Control
+# ------------------------------------------------------------------
+
+@monitoring_bp.route('/api/monitoring/sinkhole/status', methods=['GET'])
+@login_required
+def get_sinkhole_status():
+    from services.dns_sinkhole import dns_sinkhole_service
+    return jsonify({'success': True, 'sinkhole': dns_sinkhole_service.get_status()})
+
+
+@monitoring_bp.route('/api/monitoring/sinkhole/start', methods=['POST'])
+@login_required
+def start_sinkhole():
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Administrator access required.'}), 403
+    data = request.get_json() or {}
+    port = data.get('port', 53)
+    upstream = data.get('upstream_dns', '8.8.8.8')
+    from services.dns_sinkhole import dns_sinkhole_service
+    success, msg = dns_sinkhole_service.start(port=port, upstream_dns=upstream)
+    return jsonify({'success': success, 'message': msg,
+                    'sinkhole': dns_sinkhole_service.get_status()}), (200 if success else 400)
+
+
+@monitoring_bp.route('/api/monitoring/sinkhole/stop', methods=['POST'])
+@login_required
+def stop_sinkhole():
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Administrator access required.'}), 403
+    from services.dns_sinkhole import dns_sinkhole_service
+    success, msg = dns_sinkhole_service.stop()
+    return jsonify({'success': success, 'message': msg,
+                    'sinkhole': dns_sinkhole_service.get_status()}), (200 if success else 400)

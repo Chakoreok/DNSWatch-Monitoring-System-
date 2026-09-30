@@ -57,7 +57,7 @@ def api_login():
 def logout():
     """
     Destroys the authenticated session and logs the user out.
-    Redirects to the Login Page for standard browser navigation.
+    Redirects to the Landing Page.
     """
     logout_user()
     session.clear()
@@ -66,10 +66,10 @@ def logout():
         resp = jsonify({
             'success': True,
             'message': 'Logged out successfully.',
-            'redirect': url_for('views.login_page')
+            'redirect': url_for('views.landing_page')
         })
     else:
-        resp = redirect(url_for('views.login_page'))
+        resp = redirect(url_for('views.landing_page'))
         
     resp.delete_cookie('session')
     resp.delete_cookie('remember_token')
@@ -118,3 +118,62 @@ def create_user():
     db.session.commit()
     
     return jsonify({'success': True, 'message': 'User created successfully.', 'user': user.to_dict()})
+
+@auth_bp.route('/api/auth/register', methods=['POST'])
+def api_register():
+    """
+    Public self-registration endpoint for new users.
+    Creates an account, sets password hash, and authenticates the user session.
+    """
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    email = (data.get('email') or '').strip()
+    password = (data.get('password') or '').strip()
+    full_name = (data.get('full_name') or '').strip()
+    role_id = int(data.get('role_id') or 2) # Default to Security Analyst or Viewer
+    
+    if role_id not in (1, 2, 3):
+        role_id = 2
+        
+    if not username or not email or not password:
+        return jsonify({
+            'success': False,
+            'message': 'Username, email address, and password are required.'
+        }), 400
+        
+    if len(password) < 6:
+        return jsonify({
+            'success': False,
+            'message': 'Password must be at least 6 characters long.'
+        }), 400
+        
+    if User.query.filter((User.username == username) | (User.email == email)).first():
+        return jsonify({
+            'success': False,
+            'message': 'Username or email address is already registered.'
+        }), 400
+        
+    user = User(
+        username=username,
+        email=email,
+        role_id=role_id,
+        full_name=full_name or username,
+        status='ACTIVE'
+    )
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    
+    # Authenticate the newly registered user
+    session.permanent = True
+    login_user(user, remember=False)
+    user.last_login = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Registration successful! Welcome to DNSWatch.',
+        'user': user.to_dict(),
+        'redirect': url_for('views.dashboard_page')
+    })
+

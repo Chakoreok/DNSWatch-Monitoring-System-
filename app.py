@@ -6,6 +6,7 @@ from database import db
 from models import User
 from services.sniffer import sniffer_service
 from services.detection_engine import detection_engine
+from services.dns_sinkhole import dns_sinkhole_service
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -34,6 +35,8 @@ def create_app(config_class=Config):
     from routes.devices import devices_bp
     from routes.reports import reports_bp
     from routes.website_activity import website_activity_bp
+    from routes.blocking import blocking_bp
+    from routes.portal_sessions import portal_sessions_bp
     
     app.register_blueprint(views_bp)
     app.register_blueprint(auth_bp)
@@ -44,9 +47,13 @@ def create_app(config_class=Config):
     app.register_blueprint(devices_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(website_activity_bp)
+    app.register_blueprint(blocking_bp)
+    app.register_blueprint(portal_sessions_bp)
     
-    # Initialize sniffer service with app context
+    # Initialize sniffer, detection engine, and DNS sinkhole services with app context
     sniffer_service.init_app(app)
+    detection_engine.init_app(app)
+    dns_sinkhole_service.init_app(app)
     
     with app.app_context():
         try:

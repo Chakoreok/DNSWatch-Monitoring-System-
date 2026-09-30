@@ -49,7 +49,7 @@ async function fetchAlertCounts() {
   }
 }
 
-async function fetchAlerts(page = 1) {
+async function fetchAlerts(page = 1, isBackground = false) {
   currentAlertPage = page;
   const search = document.getElementById('alerts-search-input').value.trim();
   const severity = document.getElementById('alerts-severity-filter').value;
@@ -64,6 +64,9 @@ async function fetchAlerts(page = 1) {
   if (status && status !== 'ALL') url.searchParams.set('status', status);
   if (dateVal) url.searchParams.set('date', dateVal);
 
+  const refreshIcon = document.querySelector('.toolbar-right button i.fa-rotate-right');
+  if (refreshIcon && !isBackground) refreshIcon.classList.add('fa-spin');
+
   try {
     const res = await fetch(url);
     const data = await res.json();
@@ -73,29 +76,44 @@ async function fetchAlerts(page = 1) {
       cachedAlerts = data.alerts;
       tbody.innerHTML = data.alerts.map(alt => {
         const timeStr = alt.time_only || (alt.timestamp ? alt.timestamp.split(' ')[1] : '-');
-        const sevClass = (alt.severity || 'HIGH').toLowerCase() === 'high' ? 'badge-high' : 
-                         ((alt.severity || '').toLowerCase() === 'medium' ? 'badge-medium' : 'badge-low');
+        const sev = (alt.severity || 'HIGH').toUpperCase();
+        let sevBadge = '<span class="badge-high"><i class="fa-solid fa-triangle-exclamation"></i> HIGH</span>';
+        if (sev === 'MEDIUM') {
+          sevBadge = '<span class="badge-medium"><i class="fa-solid fa-triangle-exclamation"></i> MEDIUM</span>';
+        } else if (sev === 'LOW') {
+          sevBadge = '<span class="badge-low"><i class="fa-solid fa-circle-info"></i> LOW</span>';
+        }
         
-        let statusBadge = '<span class="badge-status-new">New</span>';
+        let statusBadge = '<span class="badge-status-new"><i class="fa-solid fa-circle-exclamation"></i> New</span>';
         if ((alt.status || '').toLowerCase() === 'acknowledged') {
-          statusBadge = '<span class="badge-status-ack">Acknowledged</span>';
+          statusBadge = '<span class="badge-status-ack"><i class="fa-solid fa-clock"></i> Acknowledged</span>';
         } else if ((alt.status || '').toLowerCase() === 'resolved') {
-          statusBadge = '<span class="badge-status-resolved">Resolved</span>';
+          statusBadge = '<span class="badge-status-resolved"><i class="fa-solid fa-check"></i> Resolved</span>';
         }
 
-        const domainHtml = alt.domain ? `<span style="font-weight: 500;">${alt.domain}</span>` : `<span style="font-family: monospace;">${alt.client_ip}</span>`;
+        const domainText = alt.domain || alt.client_ip;
+        const clientIp = alt.client_ip || 'Unknown';
 
         return `
           <tr>
-            <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap;">${timeStr}</td>
-            <td style="font-weight: 600;">${alt.alert_type}</td>
-            <td>${domainHtml}</td>
-            <td style="font-family: monospace; font-size: 12px;">${alt.client_ip || 'Unknown'}</td>
-            <td><span class="${sevClass}">${alt.severity || 'MEDIUM'}</span></td>
+            <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap; font-family: var(--font-mono);">${timeStr}</td>
+            <td style="font-weight: 600; color: var(--text-main);">${alt.alert_type}</td>
+            <td>
+              <div class="domain-cell">
+                <span class="domain-icon">${getDomainIcon(alt.domain)}</span>
+                <span style="font-weight: 600; cursor: pointer;" onclick="copyToClipboard('${domainText}', 'Domain')" title="Click to copy">${domainText}</span>
+              </div>
+            </td>
+            <td>
+              <span class="ip-chip" onclick="copyToClipboard('${clientIp}', 'Client IP')" title="Click to copy IP">
+                ${clientIp} <i class="fa-regular fa-copy"></i>
+              </span>
+            </td>
+            <td>${sevBadge}</td>
             <td>${statusBadge}</td>
             <td>
-              <button class="btn btn-outline btn-sm" onclick="openAlertModal('${alt.id || alt.alert_id}')" title="View Alert Details">
-                <i class="fa-regular fa-eye"></i>
+              <button class="btn btn-outline btn-sm" onclick="openAlertModal('${alt.id || alt.alert_id}')" title="Incident Triage Details">
+                <i class="fa-solid fa-magnifying-glass"></i> Triage
               </button>
             </td>
           </tr>
@@ -106,8 +124,9 @@ async function fetchAlerts(page = 1) {
     } else {
       tbody.innerHTML = `
         <tr>
-          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 35px;">
-            No security alerts match your criteria.
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px;">
+            <i class="fa-solid fa-shield-check" style="font-size: 24px; color: var(--brand-success); margin-bottom: 8px;"></i>
+            <div>No security alerts match your criteria.</div>
           </td>
         </tr>
       `;
@@ -115,7 +134,9 @@ async function fetchAlerts(page = 1) {
       document.getElementById('alerts-pagination-controls').innerHTML = '';
     }
   } catch (err) {
-    console.error('Error fetching alerts:', err);
+    if (!isBackground) console.error('Error fetching alerts:', err);
+  } finally {
+    if (refreshIcon) refreshIcon.classList.remove('fa-spin');
   }
 }
 
@@ -150,46 +171,80 @@ function openAlertModal(alertId) {
   if (!alt) return;
   currentSelectedAlert = alt;
 
-  const modal = document.getElementById('modal-alert-details');
-  document.getElementById('modal-alert-title').textContent = `${alt.alert_type} (${alt.alert_id || 'Alert'})`;
+  document.getElementById('modal-alert-title').innerHTML = `
+    <i class="fa-solid fa-triangle-exclamation" style="color: var(--brand-danger);"></i>
+    <span>${alt.alert_type} (${alt.alert_id || 'Incident'})</span>
+  `;
 
   document.getElementById('modal-alert-body').innerHTML = `
     <div class="system-status-list">
       <div class="status-row">
-        <span class="status-row-label">Timestamp</span>
+        <span class="status-row-label"><i class="fa-regular fa-clock"></i> Timestamp</span>
         <span class="status-row-value">${alt.timestamp}</span>
       </div>
       <div class="status-row">
-        <span class="status-row-label">Target Domain</span>
-        <span class="status-row-value" style="font-family: monospace;">${alt.domain}</span>
+        <span class="status-row-label"><i class="fa-solid fa-globe"></i> Target Domain</span>
+        <span class="status-row-value" style="font-family: var(--font-mono); color: #f87171;">${alt.domain}</span>
       </div>
       <div class="status-row">
-        <span class="status-row-label">Client / Source IP</span>
-        <span class="status-row-value" style="font-family: monospace;">${alt.client_ip}</span>
+        <span class="status-row-label"><i class="fa-solid fa-network-wired"></i> Source Client IP</span>
+        <span class="status-row-value" style="font-family: var(--font-mono);">${alt.client_ip}</span>
       </div>
       <div class="status-row">
-        <span class="status-row-label">Severity</span>
+        <span class="status-row-label"><i class="fa-solid fa-gauge"></i> Severity Level</span>
         <span class="status-row-value">${alt.severity}</span>
       </div>
       <div class="status-row">
-        <span class="status-row-label">Current Status</span>
+        <span class="status-row-label"><i class="fa-solid fa-circle-info"></i> Incident Status</span>
         <span class="status-row-value">${alt.status}</span>
       </div>
-      <div style="margin-top: 12px;">
-        <label class="form-label">Description & Detection Cause</label>
-        <div style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12.5px; color: var(--text-main); line-height: 1.5;">
+      <div style="margin-top: 14px;">
+        <label class="form-label">Detection Context &amp; Threat Signature</label>
+        <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 13px; color: var(--text-main); line-height: 1.5;">
           ${alt.description}
         </div>
       </div>
     </div>
   `;
 
-  modal.classList.add('show');
+  // Role-gated action buttons in alert detail modal
+  const btnDirectBlock = document.getElementById('btn-modal-direct-block');
+  const btnRequestBlock = document.getElementById('btn-modal-request-block');
+  const hasDomain = alt.domain && alt.domain.trim() !== '' && alt.domain !== alt.client_ip;
+
+  if (btnDirectBlock) {
+    btnDirectBlock.style.display = (typeof isAdmin === 'function' && isAdmin() && hasDomain) ? 'inline-flex' : 'none';
+  }
+  if (btnRequestBlock) {
+    btnRequestBlock.style.display = (typeof isAnalyst === 'function' && isAnalyst() && hasDomain) ? 'inline-flex' : 'none';
+  }
+
+  openModal('modal-alert-details');
 }
 
 function closeAlertModal() {
-  const modal = document.getElementById('modal-alert-details');
-  if (modal) modal.classList.remove('show');
+  closeModal('modal-alert-details');
+}
+
+function openDirectBlockFromAlert() {
+  if (!currentSelectedAlert) return;
+  const domain = currentSelectedAlert.domain;
+  const clientIp = currentSelectedAlert.client_ip;
+  closeAlertModal();
+  if (typeof openDirectBlockModal === 'function') {
+    openDirectBlockModal(domain, clientIp);
+  }
+}
+
+function openRequestBlockFromAlert() {
+  if (!currentSelectedAlert) return;
+  const domain = currentSelectedAlert.domain;
+  const clientIp = currentSelectedAlert.client_ip;
+  const detInfo = currentSelectedAlert.description || currentSelectedAlert.alert_type;
+  closeAlertModal();
+  if (typeof openRequestBlockModal === 'function') {
+    openRequestBlockModal(domain, clientIp, detInfo);
+  }
 }
 
 async function updateCurrentAlertStatus(newStatus) {
@@ -205,10 +260,12 @@ async function updateCurrentAlertStatus(newStatus) {
       closeAlertModal();
       fetchAlertCounts();
       fetchAlerts(currentAlertPage);
+      showToast(`Incident marked as ${newStatus}`, 'success');
     } else {
-      alert('Failed to update alert: ' + data.message);
+      showToast('Failed to update alert: ' + data.message, 'danger');
     }
   } catch (err) {
     console.error('Error updating alert status:', err);
+    showToast('Failed to update status', 'danger');
   }
 }

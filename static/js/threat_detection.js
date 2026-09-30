@@ -1,10 +1,11 @@
 // ==========================================================================
-// DNSWatch Threat Detection Controller
+// DNSWatch Threat Detection Controller & Heuristic Sandbox
 // ==========================================================================
 
 let maliciousSearchTimeout = null;
 let rulesSearchTimeout = null;
 let cachedRules = [];
+let cachedDomains = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   loadThreatSummary();
@@ -30,7 +31,121 @@ async function loadThreatSummary() {
 }
 
 // --------------------------------------------------------------------------
-// Section 1: Malicious Domains
+// Interactive Domain Testing Sandbox
+// --------------------------------------------------------------------------
+async function testDomainAgainstRules() {
+  const input = document.getElementById('sandbox-domain-input');
+  const resultBox = document.getElementById('sandbox-result-box');
+  if (!input || !resultBox) return;
+
+  const rawDomain = input.value.trim().toLowerCase();
+  if (!rawDomain) {
+    showToast('Please enter a domain to test in sandbox', 'warning');
+    return;
+  }
+
+  resultBox.style.display = 'block';
+  resultBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Evaluating heuristic rules and threat feeds...';
+  resultBox.style.background = 'var(--bg-surface-elevated)';
+  resultBox.style.border = '1px solid var(--border-color)';
+  resultBox.style.color = 'var(--text-main)';
+
+  // 1. Check if domain matches any active malicious domain
+  const matchedDomain = cachedDomains.find(d => {
+    if ((d.status || '').toLowerCase() !== 'active') return false;
+    const target = (d.domain || '').toLowerCase();
+    return rawDomain === target || rawDomain.endsWith('.' + target);
+  });
+
+  if (matchedDomain) {
+    resultBox.style.background = 'rgba(239, 68, 68, 0.12)';
+    resultBox.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+    resultBox.style.color = '#f87171';
+    resultBox.innerHTML = `
+      <div style="font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-ban"></i> MATCH FOUND: Malicious Domain Feed
+      </div>
+      <div>Domain <code>${rawDomain}</code> is listed in category <strong>${matchedDomain.category}</strong> (Severity: ${matchedDomain.severity || 'HIGH'}). Action: <strong>BLOCKED / SUSPICIOUS</strong>.</div>
+    `;
+    return;
+  }
+
+  // 2. Check against custom heuristic rules
+  for (const rule of cachedRules) {
+    if (!rule.is_active) continue;
+    const rtype = (rule.rule_type || rule.type || '').toUpperCase();
+    const pattern = (rule.pattern || '').toLowerCase();
+    let isMatch = false;
+    let reason = '';
+
+    if (rtype === 'KEYWORD') {
+      const keywords = pattern.split(',').map(k => k.trim()).filter(Boolean);
+      for (const kw of keywords) {
+        if (rawDomain.includes(kw)) {
+          isMatch = true;
+          reason = `Keyword '${kw}' found in domain`;
+          break;
+        }
+      }
+    } else if (rtype === 'TLD_BLACKLIST') {
+      const tlds = pattern.split(',').map(t => t.trim()).filter(Boolean);
+      for (const tld of tlds) {
+        const cleanTld = tld.startsWith('.') ? tld : '.' + tld;
+        if (rawDomain.endsWith(cleanTld)) {
+          isMatch = true;
+          reason = `Blacklisted TLD extension '${cleanTld}' detected`;
+          break;
+        }
+      }
+    } else if (rtype === 'REGEX') {
+      try {
+        const regex = new RegExp(rule.pattern, 'i');
+        if (regex.test(rawDomain)) {
+          isMatch = true;
+          reason = `Regular expression /${rule.pattern}/ matched`;
+        }
+      } catch (e) {
+        // Invalid regex ignore
+      }
+    } else if (rtype === 'PATTERN') {
+      const wildcard = pattern.replace(/\*/g, '.*');
+      try {
+        const regex = new RegExp(`^${wildcard}$`, 'i');
+        if (regex.test(rawDomain) || rawDomain.includes(pattern.replace(/\*/g, ''))) {
+          isMatch = true;
+          reason = `Pattern '${pattern}' matched`;
+        }
+      } catch (e) {}
+    }
+
+    if (isMatch) {
+      resultBox.style.background = 'rgba(245, 158, 11, 0.12)';
+      resultBox.style.border = '1px solid rgba(245, 158, 11, 0.35)';
+      resultBox.style.color = '#fbbf24';
+      resultBox.innerHTML = `
+        <div style="font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-triangle-exclamation"></i> MATCH FOUND: Rule "${rule.rule_name}"
+        </div>
+        <div>Condition: ${reason}. Action: <strong>${rule.action || 'Alert'}</strong> (Severity: ${rule.severity || 'MEDIUM'}).</div>
+      `;
+      return;
+    }
+  }
+
+  // Safe result
+  resultBox.style.background = 'rgba(16, 185, 129, 0.12)';
+  resultBox.style.border = '1px solid rgba(16, 185, 129, 0.35)';
+  resultBox.style.color = '#34d399';
+  resultBox.innerHTML = `
+    <div style="font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+      <i class="fa-solid fa-circle-check"></i> CLEAN DOMAIN (NO MATCHES)
+    </div>
+    <div>Domain <code>${rawDomain}</code> passed all heuristic keyword, TLD, and blacklist checks without triggering rules.</div>
+  `;
+}
+
+// --------------------------------------------------------------------------
+// Section 1: Malicious Domains Feed
 // --------------------------------------------------------------------------
 function debounceMaliciousSearch() {
   clearTimeout(maliciousSearchTimeout);
@@ -48,20 +163,23 @@ async function loadMaliciousDomains() {
     const tbody = document.getElementById('malicious-domains-tbody');
 
     if (data.success && data.domains && data.domains.length > 0) {
+      cachedDomains = data.domains;
       tbody.innerHTML = data.domains.map(d => {
-        const statusBadge = d.status.toLowerCase() === 'active' 
-          ? `<span class="badge badge-safe" style="cursor: pointer;" onclick="toggleDomainStatus(${d.id}, 'Inactive')">Active</span>`
-          : `<span class="badge" style="background:#f1f5f9; color:#64748b; cursor: pointer;" onclick="toggleDomainStatus(${d.id}, 'Active')">Inactive</span>`;
+        const statusBadge = (d.status || '').toLowerCase() === 'active' 
+          ? `<span class="badge badge-safe" style="cursor: pointer;" onclick="toggleDomainStatus(${d.id}, 'Inactive')"><i class="fa-solid fa-check"></i> Active</span>`
+          : `<span class="badge" style="background:var(--bg-surface-elevated); color:var(--text-light); cursor: pointer;" onclick="toggleDomainStatus(${d.id}, 'Active')">Inactive</span>`;
 
         return `
           <tr>
-            <td style="font-weight: 600; font-family: monospace; color: #ef4444;">${d.domain}</td>
-            <td><span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-size: 11px;">${d.category}</span></td>
-            <td style="color: var(--text-muted); font-size: 11.5px;">${d.added_at || d.created_at}</td>
+            <td style="font-weight: 600; font-family: var(--font-mono); color: #f87171;">
+              <span style="cursor: pointer;" onclick="copyToClipboard('${d.domain}', 'Domain')">${d.domain}</span>
+            </td>
+            <td><span style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); padding: 2px 8px; border-radius: var(--radius-xs); font-size: 11px;">${d.category}</span></td>
+            <td style="color: var(--text-muted); font-size: 11.5px; font-family: var(--font-mono);">${d.added_at || d.created_at}</td>
             <td style="color: var(--text-muted); font-size: 11.5px;">${d.added_by || 'admin'}</td>
             <td>${statusBadge}</td>
             <td>
-              <button class="btn-icon" onclick="deleteMaliciousDomain(${d.id}, '${d.domain}')" title="Delete Domain">
+              <button class="btn-icon" onclick="deleteMaliciousDomain(${d.id}, '${d.domain}')" title="Delete Threat Domain">
                 <i class="fa-regular fa-trash-can"></i>
               </button>
             </td>
@@ -71,7 +189,7 @@ async function loadMaliciousDomains() {
     } else {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 35px;">
             No malicious domains registered. Click <strong>+ Add Domain</strong> to register a threat.
           </td>
         </tr>
@@ -84,7 +202,7 @@ async function loadMaliciousDomains() {
 
 function openAddDomainModal() {
   document.getElementById('form-add-domain').reset();
-  document.getElementById('modal-add-domain').classList.add('show');
+  openModal('modal-add-domain');
 }
 
 async function submitAddDomain(e) {
@@ -105,11 +223,13 @@ async function submitAddDomain(e) {
       closeModal('modal-add-domain');
       loadMaliciousDomains();
       loadThreatSummary();
+      showToast(`Domain '${domain}' registered in threat blacklist`, 'success');
     } else {
-      alert('Error: ' + data.message);
+      showToast('Error: ' + data.message, 'danger');
     }
   } catch (err) {
     console.error('Error adding domain:', err);
+    showToast('Failed to add threat domain', 'danger');
   }
 }
 
@@ -123,6 +243,7 @@ async function toggleDomainStatus(id, newStatus) {
     const data = await res.json();
     if (data.success) {
       loadMaliciousDomains();
+      showToast(`Domain status updated to ${newStatus}`, 'info', 1600);
     }
   } catch (err) {
     console.error('Error toggling domain status:', err);
@@ -137,6 +258,7 @@ async function deleteMaliciousDomain(id, domain) {
     if (data.success) {
       loadMaliciousDomains();
       loadThreatSummary();
+      showToast(`Removed '${domain}' from blacklist`, 'warning');
     }
   } catch (err) {
     console.error('Error deleting domain:', err);
@@ -144,7 +266,7 @@ async function deleteMaliciousDomain(id, domain) {
 }
 
 // --------------------------------------------------------------------------
-// Section 2: Domain Rules (Basic Domain Rule Checking)
+// Section 2: Domain Rules (Heuristic Rule Checking)
 // --------------------------------------------------------------------------
 function debounceRulesSearch() {
   clearTimeout(rulesSearchTimeout);
@@ -169,20 +291,20 @@ async function loadDomainRules() {
           : '<span class="badge badge-suspicious">Alert</span>';
 
         const statusBadge = r.is_active
-          ? `<span class="badge badge-safe" style="cursor: pointer;" onclick="toggleRuleActive(${r.id}, false)">Active</span>`
-          : `<span class="badge" style="background:#f1f5f9; color:#64748b; cursor: pointer;" onclick="toggleRuleActive(${r.id}, true)">Inactive</span>`;
+          ? `<span class="badge badge-safe" style="cursor: pointer;" onclick="toggleRuleActive(${r.id}, false)"><i class="fa-solid fa-check"></i> Active</span>`
+          : `<span class="badge" style="background:var(--bg-surface-elevated); color:var(--text-light); cursor: pointer;" onclick="toggleRuleActive(${r.id}, true)">Inactive</span>`;
 
         return `
           <tr>
             <td style="font-weight: 600;">${r.rule_name}</td>
-            <td><span style="background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${r.type}</span></td>
-            <td style="font-family: monospace; font-size: 12px; color: var(--text-main); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.pattern}">${r.pattern}</td>
+            <td><span style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); padding: 2px 8px; border-radius: var(--radius-xs); font-size: 11px; font-weight: 600; font-family: var(--font-mono);">${r.type}</span></td>
+            <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-main); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.pattern}">${r.pattern}</td>
             <td>${actionBadge}</td>
             <td>${statusBadge}</td>
-            <td style="color: var(--text-muted); font-size: 11.5px;">${r.last_modified}</td>
+            <td style="color: var(--text-muted); font-size: 11.5px; font-family: var(--font-mono);">${r.last_modified}</td>
             <td>
               <div style="display: flex; gap: 4px;">
-                <button class="btn-icon" onclick="openEditRuleModal(${r.id})" title="Edit Rule"><i class="fa-regular fa-pen-to-square"></i></button>
+                <button class="btn-icon btn-icon-primary" onclick="openEditRuleModal(${r.id})" title="Edit Rule"><i class="fa-regular fa-pen-to-square"></i></button>
                 <button class="btn-icon" onclick="deleteRule(${r.id}, '${r.rule_name}')" title="Delete Rule"><i class="fa-regular fa-trash-can"></i></button>
               </div>
             </td>
@@ -192,7 +314,7 @@ async function loadDomainRules() {
     } else {
       tbody.innerHTML = `
         <tr>
-          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 35px;">
             No domain detection rules configured. Click <strong>+ Add Rule</strong> to create one.
           </td>
         </tr>
@@ -206,8 +328,8 @@ async function loadDomainRules() {
 function openAddRuleModal() {
   document.getElementById('form-add-rule').reset();
   document.getElementById('input-rule-id').value = '';
-  document.getElementById('modal-rule-title').textContent = 'Add Domain Rule';
-  document.getElementById('modal-add-rule').classList.add('show');
+  document.getElementById('modal-rule-title').innerHTML = '<i class="fa-solid fa-filter" style="color: var(--brand-warning);"></i> Add Domain Heuristic Rule';
+  openModal('modal-add-rule');
 }
 
 function openEditRuleModal(ruleId) {
@@ -216,13 +338,13 @@ function openEditRuleModal(ruleId) {
 
   document.getElementById('input-rule-id').value = r.id;
   document.getElementById('input-rule-name').value = r.rule_name;
-  document.getElementById('input-rule-type').value = r.rule_type;
+  document.getElementById('input-rule-type').value = r.rule_type || r.type;
   document.getElementById('input-rule-pattern').value = r.pattern;
   document.getElementById('input-rule-action').value = r.action || 'Alert';
   document.getElementById('input-rule-sev').value = r.severity || 'MEDIUM';
 
-  document.getElementById('modal-rule-title').textContent = 'Edit Domain Rule';
-  document.getElementById('modal-add-rule').classList.add('show');
+  document.getElementById('modal-rule-title').innerHTML = '<i class="fa-solid fa-pen-to-square" style="color: var(--brand-primary);"></i> Edit Domain Heuristic Rule';
+  openModal('modal-add-rule');
 }
 
 async function submitRule(e) {
@@ -250,11 +372,13 @@ async function submitRule(e) {
       closeModal('modal-add-rule');
       loadDomainRules();
       loadThreatSummary();
+      showToast(ruleId ? 'Rule updated successfully' : 'New detection rule created', 'success');
     } else {
-      alert('Error: ' + data.message);
+      showToast('Error: ' + data.message, 'danger');
     }
   } catch (err) {
     console.error('Error saving rule:', err);
+    showToast('Failed to save rule', 'danger');
   }
 }
 
@@ -268,6 +392,7 @@ async function toggleRuleActive(id, isActive) {
     const data = await res.json();
     if (data.success) {
       loadDomainRules();
+      showToast(`Rule state updated`, 'info', 1600);
     }
   } catch (err) {
     console.error('Error toggling rule active state:', err);
@@ -282,6 +407,7 @@ async function deleteRule(id, ruleName) {
     if (data.success) {
       loadDomainRules();
       loadThreatSummary();
+      showToast(`Rule '${ruleName}' deleted`, 'warning');
     }
   } catch (err) {
     console.error('Error deleting rule:', err);
@@ -303,7 +429,7 @@ async function loadFrequencyRule() {
       const actBadge = f.action.toLowerCase() === 'block' ? '<span class="badge badge-blocked">Block</span>' : '<span class="badge badge-suspicious">Alert</span>';
       document.getElementById('freq-val-action').innerHTML = actBadge;
 
-      const statBadge = f.status.toLowerCase() === 'active' ? '<span class="badge badge-safe">Active</span>' : '<span class="badge" style="background:#f1f5f9; color:#64748b;">Inactive</span>';
+      const statBadge = f.status.toLowerCase() === 'active' ? '<span class="badge badge-safe">Active</span>' : '<span class="badge" style="background:var(--bg-surface-elevated); color:var(--text-light);">Inactive</span>';
       document.getElementById('freq-val-status').innerHTML = statBadge;
 
       // Populate edit modal fields
@@ -318,7 +444,7 @@ async function loadFrequencyRule() {
 }
 
 function openEditFreqModal() {
-  document.getElementById('modal-edit-freq').classList.add('show');
+  openModal('modal-edit-freq');
 }
 
 async function submitFrequencyRule(e) {
@@ -340,15 +466,12 @@ async function submitFrequencyRule(e) {
     if (data.success) {
       closeModal('modal-edit-freq');
       loadFrequencyRule();
+      showToast('Frequency burst rule configuration updated', 'success');
     } else {
-      alert('Error updating frequency rule: ' + data.message);
+      showToast('Error updating frequency rule: ' + data.message, 'danger');
     }
   } catch (err) {
     console.error('Error submitting frequency rule:', err);
+    showToast('Failed to update frequency rule', 'danger');
   }
-}
-
-function closeModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (modal) modal.classList.remove('show');
 }

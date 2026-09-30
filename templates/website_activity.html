@@ -2,7 +2,7 @@
 
 {% block title %}DNSWatch - Website Activity{% endblock %}
 {% block header_title %}Website Activity{% endblock %}
-{% block header_subtitle %}List of websites accessed by users in the network.{% endblock %}
+{% block header_subtitle %}Overview of domain requests and web destinations accessed by users across the network.{% endblock %}
 
 {% block content %}
 <div class="card">
@@ -12,21 +12,21 @@
       <div class="toolbar-left">
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="text" id="web-search-input" placeholder="Search domain or client..." oninput="debounceWebSearch()">
+          <input type="text" id="web-search-input" placeholder="Search domain, host or client IP..." oninput="debounceWebSearch()">
         </div>
 
         <select class="filter-select" id="web-status-filter" onchange="fetchWebsiteActivity(1)">
-          <option value="ALL">All Status</option>
-          <option value="SAFE">SAFE</option>
-          <option value="SUSPICIOUS">SUSPICIOUS</option>
-          <option value="BLOCKED">BLOCKED</option>
+          <option value="ALL">All Statuses</option>
+          <option value="SAFE">SAFE Web Activity</option>
+          <option value="SUSPICIOUS">SUSPICIOUS Web Activity</option>
+          <option value="BLOCKED">BLOCKED Web Activity</option>
         </select>
 
         <input type="date" class="filter-select" id="web-date-filter" onchange="fetchWebsiteActivity(1)">
       </div>
 
       <div class="toolbar-right">
-        <button class="btn btn-outline" onclick="fetchWebsiteActivity(currentWebPage)">
+        <button class="btn btn-outline" onclick="fetchWebsiteActivity(currentWebPage)" title="Refresh Activity">
           <i class="fa-solid fa-rotate-right"></i> Refresh
         </button>
       </div>
@@ -38,18 +38,19 @@
         <thead>
           <tr>
             <th>Time</th>
-            <th>Domain</th>
-            <th>Client / Device</th>
+            <th>Domain Destination</th>
+            <th>Client Hostname</th>
             <th>Client IP</th>
             <th>Device Type</th>
-            <th>Status</th>
+            <th>Security Status</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody id="web-activity-tbody">
           <tr>
-            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">
-              <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px;"></i>
-              <div>Loading website activity...</div>
+            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px;">
+              <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 24px; color: var(--brand-primary); margin-bottom: 10px;"></i>
+              <div>Loading web destinations...</div>
             </td>
           </tr>
         </tbody>

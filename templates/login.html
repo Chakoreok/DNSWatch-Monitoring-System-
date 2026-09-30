@@ -1,184 +1,695 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DNSWatch - Login</title>
+  <title>DNSWatch - Authentication &amp; SOC Access Portal</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_icon.png') }}">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  
   <style>
-    .login-wrapper {
+    body.auth-portal-page {
+      display: block;
+      background-color: #060911;
+      color: #f1f5f9;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .auth-wrapper {
       display: flex;
       width: 100vw;
       min-height: 100vh;
     }
-    .login-brand-panel {
-      width: 42%;
-      background-color: #0f172a;
+
+    /* Left Cyber SOC Panel */
+    .auth-brand-panel {
+      width: 46%;
+      background: linear-gradient(145deg, #070b14 0%, #0d1424 50%, #080c16 100%);
       color: #ffffff;
       padding: 60px 48px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       border-right: 1px solid rgba(255, 255, 255, 0.08);
+      position: relative;
+      overflow: hidden;
     }
-    .login-form-panel {
-      flex: 1;
-      background-color: #ffffff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 40px;
-    }
-    .login-card {
-      width: 100%;
-      max-width: 440px;
-    }
-    .lock-icon-circle {
-      width: 56px;
-      height: 56px;
+
+    .auth-brand-panel::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      left: -120px;
+      width: 480px;
+      height: 480px;
       border-radius: 50%;
-      background: #def7ec;
-      color: #10b981;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, rgba(16, 185, 129, 0.08) 50%, transparent 70%);
+      filter: blur(40px);
+      pointer-events: none;
+    }
+
+    .brand-top-row {
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      margin: 0 auto 16px;
+      justify-content: space-between;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 1;
     }
-    .feature-point {
+
+    .brand-title-lead {
+      font-family: 'Outfit', sans-serif;
+      font-size: 40px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      margin-bottom: 16px;
+    }
+
+    .brand-title-lead .gradient-text {
+      background: linear-gradient(135deg, #60a5fa 0%, #34d399 50%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-desc {
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 36px;
+      max-width: 480px;
+    }
+
+    /* Radar Simulation Widget */
+    .radar-visual-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 36px;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .radar-scanner-ring {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .radar-live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .radar-points-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      font-size: 11.5px;
+      font-family: var(--font-mono);
+    }
+
+    .radar-point-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 8px 10px;
+      border-radius: var(--radius-xs);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .radar-point-item .val {
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .radar-point-item .lbl {
+      color: #64748b;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .feature-item-row {
       display: flex;
       align-items: flex-start;
-      gap: 12px;
+      gap: 14px;
       margin-bottom: 20px;
+      position: relative;
+      z-index: 1;
     }
-    .feature-point-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.08);
+
+    .feature-item-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #10b981;
-      font-size: 14px;
+      font-size: 15px;
       flex-shrink: 0;
+    }
+
+    /* Right Auth Form Panel */
+    .auth-form-panel {
+      flex: 1;
+      background-color: #060911;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 32px;
+      position: relative;
+    }
+
+    .back-home-btn {
+      position: absolute;
+      top: 32px;
+      left: 36px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(8px);
+      transition: all var(--transition-fast);
+      z-index: 10;
+    }
+
+    .back-home-btn:hover {
+      color: #ffffff;
+      background: rgba(15, 23, 42, 0.9);
+      border-color: rgba(59, 130, 246, 0.4);
+      transform: translateX(-3px);
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 480px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-xl);
+      padding: 40px 36px;
+      box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      position: relative;
+    }
+
+    /* Interactive Tab Switcher */
+    .auth-segmented-tabs {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-pill);
+      padding: 4px;
+      margin-bottom: 28px;
+      gap: 4px;
+    }
+
+    .auth-tab-btn {
+      flex: 1;
+      padding: 9px 16px;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all var(--transition-fast);
+    }
+
+    .auth-tab-btn.active {
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-hover));
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+    }
+
+    .auth-tab-btn:hover:not(.active) {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .auth-form-view {
+      display: none;
+      animation: formFade 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .auth-form-view.active {
+      display: block;
+    }
+
+    @keyframes formFade {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Password Strength Meter */
+    .pw-strength-container {
+      margin-top: 8px;
+    }
+
+    .pw-strength-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+
+    .pw-strength-fill {
+      height: 100%;
+      width: 0%;
+      transition: all 0.3s ease;
+      border-radius: var(--radius-pill);
+    }
+
+    .pw-strength-text {
+      font-size: 11px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Quick Creds Pills */
+    .quick-creds-container {
+      margin-top: 24px;
+      padding: 14px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-sm);
+    }
+
+    .quick-creds-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .quick-role-chip {
+      padding: 5px 12px;
+      border-radius: var(--radius-xs);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all var(--transition-fast);
+    }
+
+    .quick-role-chip:hover {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: #3b82f6;
+      color: #60a5fa;
+      transform: translateY(-1px);
+    }
+
+    @media (max-width: 960px) {
+      .auth-brand-panel {
+        display: none;
+      }
+      .back-home-btn {
+        top: 20px;
+        left: 20px;
+      }
+      .auth-card {
+        padding: 32px 24px;
+      }
     }
   </style>
 </head>
-<body style="display: block; background: #ffffff;">
-  <div class="login-wrapper">
+<body class="auth-portal-page" data-initial-tab="{{ initial_tab or 'login' }}">
+  <div class="auth-wrapper">
     <!-- Left Dark Branding Panel -->
-    <div class="login-brand-panel">
+    <div class="auth-brand-panel">
       <div>
-        <div class="brand-logo" style="margin-bottom: 48px;">
-          <div class="brand-logo-icon">
+        <div class="brand-top-row">
+          <a href="{{ url_for('views.landing_page') }}" class="brand-logo" title="DNSWatch Home">
+            <img src="{{ url_for('static', filename='img/logo_tight.png') }}" alt="DNSWatch" class="brand-logo-img" style="height: 52px; width: auto; object-fit: contain;">
+          </a>
+          <span class="badge badge-safe"><i class="fa-solid fa-bolt"></i> Port 53 Active</span>
+        </div>
+
+        <h2 class="brand-title-lead">
+          Intelligent DNS<br>
+          <span class="gradient-text">Defense &amp; Monitoring</span>
+        </h2>
+        
+        <p class="brand-desc">
+          Automated packet inspection with Scapy, heuristic anomaly detection, and real-time DNS sinkhole enforcement for local networks.
+        </p>
+
+        <!-- Live Telemetry Radar Preview -->
+        <div class="radar-visual-box">
+          <div class="radar-scanner-ring">
+            <span style="font-size: 12.5px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-satellite-dish" style="color: var(--brand-primary);"></i> Real-Time SOC Telemetry
+            </span>
+            <span class="radar-live-badge"><span class="status-dot active" style="width:6px;height:6px;"></span> 0ms Latency</span>
+          </div>
+
+          <div class="radar-points-grid">
+            <div class="radar-point-item">
+              <span class="val" style="color: #60a5fa;">Port 53</span>
+              <span class="lbl">UDP/TCP Capture</span>
+            </div>
+            <div class="radar-point-item">
+              <span class="val" style="color: #34d399;">NXDOMAIN</span>
+              <span class="lbl">Sinkhole Enforcement</span>
+            </div>
+            <div class="radar-point-item">
+              <span class="val" style="color: #c084fc;">Heuristics</span>
+              <span class="lbl">3 Active Engines</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Capability Features -->
+        <div class="feature-item-row">
+          <div class="feature-item-icon" style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #60a5fa;">
+            <i class="fa-solid fa-wave-square"></i>
+          </div>
+          <div>
+            <div style="font-weight: 700; font-size: 14px; color: #f1f5f9;">Raw Packet Sniffing</div>
+            <div style="color: #94a3b8; font-size: 12.5px;">Inspects live query headers, response IPs, and TTLs in real-time.</div>
+          </div>
+        </div>
+
+        <div class="feature-item-row">
+          <div class="feature-item-icon" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;">
             <i class="fa-solid fa-shield-halved"></i>
           </div>
           <div>
-            <div class="brand-title">DNSWatch</div>
-            <div class="brand-subtitle">DNS SECURITY MONITORING SYSTEM</div>
-          </div>
-        </div>
-
-        <h2 style="font-family: 'Outfit', sans-serif; font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 12px;">
-          Monitor. Detect.<br><span style="color: #10b981;">Protect.</span>
-        </h2>
-        <p style="color: #94a3b8; font-size: 14px; line-height: 1.5; margin-bottom: 40px;">
-          Real-time DNS monitoring and threat detection for a safer and more secure network.
-        </p>
-
-        <div class="feature-point">
-          <div class="feature-point-icon"><i class="fa-solid fa-bolt"></i></div>
-          <div>
-            <div style="font-weight: 600; font-size: 13.5px;">Real-time Monitoring</div>
-            <div style="color: #94a3b8; font-size: 12px;">Capture and monitor DNS requests in real-time.</div>
-          </div>
-        </div>
-
-        <div class="feature-point">
-          <div class="feature-point-icon"><i class="fa-solid fa-shield"></i></div>
-          <div>
-            <div style="font-weight: 600; font-size: 13.5px;">Threat Detection</div>
-            <div style="color: #94a3b8; font-size: 12px;">Detect malicious domains and suspicious activities.</div>
-          </div>
-        </div>
-
-        <div class="feature-point">
-          <div class="feature-point-icon"><i class="fa-solid fa-list"></i></div>
-          <div>
-            <div style="font-weight: 600; font-size: 13.5px;">Detailed Logs</div>
-            <div style="color: #94a3b8; font-size: 12px;">Store and review DNS activity logs with complete details.</div>
-          </div>
-        </div>
-
-        <div class="feature-point">
-          <div class="feature-point-icon"><i class="fa-solid fa-bell"></i></div>
-          <div>
-            <div style="font-weight: 600; font-size: 13.5px;">Instant Alerts</div>
-            <div style="color: #94a3b8; font-size: 12px;">Get notified of high-risk threats and malicious domains.</div>
+            <div style="font-weight: 700; font-size: 14px; color: #f1f5f9;">Instant Threat Mitigation</div>
+            <div style="color: #94a3b8; font-size: 12.5px;">Phishing, C2 domains, and frequency bursts neutralized locally.</div>
           </div>
         </div>
       </div>
 
-      <div style="font-size: 11px; color: #64748b;">
-        © 2026 DNSWatch. All rights reserved.
+      <div style="font-size: 12px; color: #64748b; position: relative; z-index: 1;">
+        © 2026 DNSWatch System &bull; Enterprise SOC Telemetry
       </div>
     </div>
 
-    <!-- Right Login Form Panel -->
-    <div class="login-form-panel">
-      <div class="login-card">
-        <div style="text-align: center; margin-bottom: 28px;">
-          <div class="lock-icon-circle">
-            <i class="fa-solid fa-lock"></i>
-          </div>
-          <h2 style="font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 700; color: #0f172a;">Welcome Back!</h2>
-          <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Login to access your DNSWatch dashboard</p>
+    <!-- Right Interactive Auth Form Panel -->
+    <div class="auth-form-panel">
+      <a href="{{ url_for('views.landing_page') }}" class="back-home-btn">
+        <i class="fa-solid fa-arrow-left"></i> <span>Back to Home</span>
+      </a>
+
+      <div class="auth-card">
+        <!-- Brand Icon -->
+        <div style="text-align: center; margin-bottom: 24px;">
+          <img src="{{ url_for('static', filename='img/logo_icon.png') }}" alt="DNSWatch" style="width: 46px; height: 46px; object-fit: contain; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.4));">
+          <h2 style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; color: #ffffff;" id="auth-heading">
+            Authentication Portal
+          </h2>
+          <p style="font-size: 12.5px; color: #94a3b8; margin-top: 3px;" id="auth-subheading">
+            Access real-time network DNS security telemetry
+          </p>
         </div>
 
-        <div id="login-error-alert" style="display: none; background: #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 6px; font-size: 12.5px; margin-bottom: 16px; border: 1px solid #fca5a5;">
-          <!-- Injected by JS -->
-        </div>
-
-        <form id="login-form" onsubmit="handleLogin(event)">
-          <div class="form-group">
-            <label class="form-label">Email or Username</label>
-            <div class="search-box" style="width: 100%;">
-              <i class="fa-regular fa-envelope"></i>
-              <input type="text" id="login-email" placeholder="Enter username or email" value="" required autocomplete="username">
-            </div>
-          </div>
-
-          <div class="form-group" style="margin-bottom: 12px;">
-            <label class="form-label">Password</label>
-            <div class="search-box" style="width: 100%;">
-              <i class="fa-solid fa-lock"></i>
-              <input type="password" id="login-password" placeholder="Enter your password" value="" required autocomplete="current-password">
-            </div>
-          </div>
-
-          <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
-            <a href="#" style="font-size: 12px; color: #10b981; text-decoration: none; font-weight: 500;">Forgot Password?</a>
-          </div>
-
-          <button type="submit" class="btn btn-primary" id="btn-login" style="width: 100%; justify-content: center; background: #10b981; padding: 11px; font-size: 13.5px; font-weight: 600;">
-            <i class="fa-solid fa-right-to-bracket"></i> Login to Dashboard
+        <!-- Segmented Tab Switcher (Sign In / Create Account) -->
+        <div class="auth-segmented-tabs">
+          <button type="button" class="auth-tab-btn active" id="tab-btn-login" onclick="switchAuthTab('login')">
+            <i class="fa-solid fa-right-to-bracket"></i> <span>Sign In</span>
           </button>
-        </form>
+          <button type="button" class="auth-tab-btn" id="tab-btn-signup" onclick="switchAuthTab('signup')">
+            <i class="fa-solid fa-user-plus"></i> <span>Create Account</span>
+          </button>
+        </div>
 
-        <div style="text-align: center; margin-top: 24px; font-size: 12px; color: var(--text-muted);">
-          Protected System &bull; <span style="color: #64748b;">Authorized Access Only</span>
+        <!-- Error / Feedback Alert Box -->
+        <div id="auth-error-alert" style="display: none; background: rgba(239, 68, 68, 0.15); color: #f87171; padding: 12px 16px; border-radius: var(--radius-sm); font-size: 12.5px; margin-bottom: 20px; border: 1px solid rgba(239, 68, 68, 0.3);">
+        </div>
+
+        <!-- ========================================================
+             FORM 1: SIGN IN (LOGIN)
+             ======================================================== -->
+        <div class="auth-form-view active" id="view-login">
+          <form id="login-form" onsubmit="handleLoginSubmit(event)">
+            <div class="form-group">
+              <label class="form-label">Username or Email Address</label>
+              <div class="search-box" style="width: 100%;">
+                <i class="fa-solid fa-user-shield"></i>
+                <input type="text" id="login-email" placeholder="Enter username or email" required autocomplete="username">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="form-label" style="margin-bottom: 0;">Password</label>
+                <button type="button" onclick="togglePasswordVisibility('login-password', 'login-eye-icon', 'login-eye-text')" style="background: none; border: none; color: #94a3b8; font-size: 11.5px; cursor: pointer;">
+                  <i class="fa-regular fa-eye" id="login-eye-icon"></i> <span id="login-eye-text">Show</span>
+                </button>
+              </div>
+              <div class="search-box" style="width: 100%;">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password">
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btn-login-submit" style="width: 100%; padding: 12px; font-size: 13.5px; font-weight: 700; margin-top: 10px;">
+              <i class="fa-solid fa-right-to-bracket"></i> Sign In to Dashboard
+            </button>
+          </form>
+
+          <!-- 1-Click Quick Demo Sign-In Credentials -->
+          <div class="quick-creds-container">
+            <div class="quick-creds-title">
+              <i class="fa-solid fa-bolt" style="color: var(--brand-warning);"></i> 1-Click Demo Credentials:
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="quick-role-chip" onclick="fillDemoCreds('admin', 'admin123')">
+                <i class="fa-solid fa-shield-halved" style="color: #60a5fa;"></i> Admin
+              </button>
+              <button type="button" class="quick-role-chip" onclick="fillDemoCreds('analyst', 'analyst123')">
+                <i class="fa-solid fa-user-secret" style="color: #fbbf24;"></i> Analyst
+              </button>
+              <button type="button" class="quick-role-chip" onclick="fillDemoCreds('viewer', 'viewer123')">
+                <i class="fa-solid fa-eye" style="color: #34d399;"></i> Viewer
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             FORM 2: SIGN UP (CREATE ACCOUNT)
+             ======================================================== -->
+        <div class="auth-form-view" id="view-signup">
+          <form id="signup-form" onsubmit="handleSignupSubmit(event)">
+            <div class="form-group">
+              <label class="form-label">Full Name</label>
+              <div class="search-box" style="width: 100%;">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="signup-fullname" placeholder="e.g. Alex Mercer" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Username</label>
+              <div class="search-box" style="width: 100%;">
+                <i class="fa-solid fa-at"></i>
+                <input type="text" id="signup-username" placeholder="Choose a unique username" required autocomplete="username">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Email Address</label>
+              <div class="search-box" style="width: 100%;">
+                <i class="fa-regular fa-envelope"></i>
+                <input type="email" id="signup-email" placeholder="name@company.com" required autocomplete="email">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="form-label" style="margin-bottom: 0;">Password</label>
+                <button type="button" onclick="togglePasswordVisibility('signup-password', 'signup-eye-icon', 'signup-eye-text')" style="background: none; border: none; color: #94a3b8; font-size: 11.5px; cursor: pointer;">
+                  <i class="fa-regular fa-eye" id="signup-eye-icon"></i> <span id="signup-eye-text">Show</span>
+                </button>
+              </div>
+              <div class="search-box" style="width: 100%;">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="signup-password" placeholder="Create a secure password" required minlength="6" autocomplete="new-password" oninput="checkPasswordStrength(this.value)">
+              </div>
+              <!-- Strength Bar -->
+              <div class="pw-strength-container" id="pw-strength-wrap" style="display: none;">
+                <div class="pw-strength-bar">
+                  <div class="pw-strength-fill" id="pw-strength-fill"></div>
+                </div>
+                <div class="pw-strength-text">
+                  <span>Security Strength</span>
+                  <span id="pw-strength-label">Weak</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Requested Role</label>
+              <select class="form-control" id="signup-role">
+                <option value="2" selected>Security Analyst (Monitor &amp; Request Block)</option>
+                <option value="3">Viewer (Read-Only Telemetry)</option>
+                <option value="1">Administrator (Full Access)</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btn-signup-submit" style="width: 100%; padding: 12px; font-size: 13.5px; font-weight: 700; margin-top: 10px;">
+              <i class="fa-solid fa-user-check"></i> Complete Registration &amp; Enter SOC
+            </button>
+          </form>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; font-size: 11.5px; color: #64748b;">
+          DNSWatch Security &bull; Protected Telemetry Session
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    async function handleLogin(e) {
-      if (e) e.preventDefault();
-      const btn = document.getElementById('btn-login');
-      const errBox = document.getElementById('login-error-alert');
+    document.addEventListener('DOMContentLoaded', () => {
+      const initTab = document.body.getAttribute('data-initial-tab') || 'login';
+      const hash = window.location.hash.replace('#', '');
+      if (hash === 'signup' || initTab === 'signup') {
+        switchAuthTab('signup');
+      } else {
+        switchAuthTab('login');
+      }
+    });
+
+    function switchAuthTab(tab) {
+      const btnLogin = document.getElementById('tab-btn-login');
+      const btnSignup = document.getElementById('tab-btn-signup');
+      const viewLogin = document.getElementById('view-login');
+      const viewSignup = document.getElementById('view-signup');
+      const errBox = document.getElementById('auth-error-alert');
+      const heading = document.getElementById('auth-heading');
+      const subheading = document.getElementById('auth-subheading');
+
+      errBox.style.display = 'none';
+
+      if (tab === 'signup') {
+        btnLogin.classList.remove('active');
+        btnSignup.classList.add('active');
+        viewLogin.classList.remove('active');
+        viewSignup.classList.add('active');
+        heading.textContent = 'Create SOC Account';
+        subheading.textContent = 'Register your credentials for network DNS security';
+        window.history.replaceState(null, null, '#signup');
+      } else {
+        btnSignup.classList.remove('active');
+        btnLogin.classList.add('active');
+        viewSignup.classList.remove('active');
+        viewLogin.classList.add('active');
+        heading.textContent = 'Authentication Portal';
+        subheading.textContent = 'Access real-time network DNS security telemetry';
+        window.history.replaceState(null, null, '#login');
+      }
+    }
+
+    function togglePasswordVisibility(inputId, iconId, textId) {
+      const input = document.getElementById(inputId);
+      const icon = document.getElementById(iconId);
+      const text = document.getElementById(textId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-regular fa-eye-slash';
+        text.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        icon.className = 'fa-regular fa-eye';
+        text.textContent = 'Show';
+      }
+    }
+
+    function fillDemoCreds(u, p) {
+      document.getElementById('login-email').value = u;
+      document.getElementById('login-password').value = p;
+      showToast(`Loaded ${u} credentials`, 'info', 1500);
+    }
+
+    function checkPasswordStrength(val) {
+      const wrap = document.getElementById('pw-strength-wrap');
+      const fill = document.getElementById('pw-strength-fill');
+      const label = document.getElementById('pw-strength-label');
+      if (!val) {
+        wrap.style.display = 'none';
+        return;
+      }
+      wrap.style.display = 'block';
+
+      let score = 0;
+      if (val.length >= 6) score += 25;
+      if (val.length >= 10) score += 25;
+      if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score += 25;
+      if (/[0-9]/.test(val) || /[^A-Za-z0-9]/.test(val)) score += 25;
+
+      fill.style.width = score + '%';
+
+      if (score <= 25) {
+        fill.style.background = '#ef4444';
+        label.textContent = 'Weak';
+        label.style.color = '#ef4444';
+      } else if (score <= 50) {
+        fill.style.background = '#f59e0b';
+        label.textContent = 'Fair';
+        label.style.color = '#f59e0b';
+      } else if (score <= 75) {
+        fill.style.background = '#3b82f6';
+        label.textContent = 'Good';
+        label.style.color = '#60a5fa';
+      } else {
+        fill.style.background = '#10b981';
+        label.textContent = 'Strong (Protected)';
+        label.style.color = '#34d399';
+      }
+    }
+
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-login-submit');
+      const errBox = document.getElementById('auth-error-alert');
       errBox.style.display = 'none';
 
       const email = document.getElementById('login-email').value.trim();
@@ -191,6 +702,7 @@
       }
 
       btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Authenticating...';
 
       try {
         const res = await fetch('/api/auth/login', {
@@ -200,16 +712,72 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          window.location.href = data.redirect || '/dashboard';
+          showToast('Login successful! Entering SOC...', 'success', 2000);
+          setTimeout(() => {
+            window.location.href = data.redirect || '/dashboard';
+          }, 400);
         } else {
-          errBox.textContent = data.message || 'Invalid username or password.';
+          errBox.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${data.message || 'Invalid username or password.'}`;
           errBox.style.display = 'block';
         }
       } catch (err) {
-        errBox.textContent = 'Connection error: ' + err.message;
+        errBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Connection error: ${err.message}`;
         errBox.style.display = 'block';
       } finally {
         btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In to Dashboard';
+      }
+    }
+
+    async function handleSignupSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-signup-submit');
+      const errBox = document.getElementById('auth-error-alert');
+      errBox.style.display = 'none';
+
+      const fullName = document.getElementById('signup-fullname').value.trim();
+      const username = document.getElementById('signup-username').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const password = document.getElementById('signup-password').value;
+      const roleId = parseInt(document.getElementById('signup-role').value);
+
+      if (!username || !email || !password) {
+        errBox.textContent = 'Please fill out all required fields.';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Creating Account...';
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            full_name: fullName,
+            username: username,
+            email: email,
+            password: password,
+            role_id: roleId
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast('Account registered! Redirecting to Dashboard...', 'success', 2000);
+          setTimeout(() => {
+            window.location.href = data.redirect || '/dashboard';
+          }, 500);
+        } else {
+          errBox.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${data.message || 'Registration failed.'}`;
+          errBox.style.display = 'block';
+        }
+      } catch (err) {
+        errBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Connection error: ${err.message}`;
+        errBox.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-user-check"></i> Complete Registration &amp; Enter SOC';
       }
     }
   </script>

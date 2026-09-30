@@ -6,23 +6,36 @@ views_bp = Blueprint('views', __name__)
 
 @views_bp.route('/')
 def index():
-    """Root URL redirects to dashboard if authenticated, or login page if unauthenticated."""
+    """Root URL: Shows Landing Page if unauthenticated, or Dashboard if authenticated."""
     if current_user.is_authenticated:
         return redirect(url_for('views.dashboard_page'))
-    return redirect(url_for('views.login_page'))
+    return render_template('landing.html')
 
 @views_bp.route('/home')
 def home():
     if current_user.is_authenticated:
         return redirect(url_for('views.dashboard_page'))
-    return redirect(url_for('views.login_page'))
+    return render_template('landing.html')
+
+@views_bp.route('/landing')
+def landing_page():
+    """Explicit route for the Landing Page."""
+    return render_template('landing.html')
 
 @views_bp.route('/login')
 def login_page():
     """Shows Login page, or redirects to dashboard if already authenticated."""
     if current_user.is_authenticated:
         return redirect(url_for('views.dashboard_page'))
-    return render_template('login.html')
+    return render_template('login.html', initial_tab='login')
+
+@views_bp.route('/signup')
+@views_bp.route('/register')
+def signup_page():
+    """Shows Signup page / tab, or redirects to dashboard if already authenticated."""
+    if current_user.is_authenticated:
+        return redirect(url_for('views.dashboard_page'))
+    return render_template('login.html', initial_tab='signup')
 
 @views_bp.route('/dashboard')
 @login_required

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}DNSWatch - Dashboard{% endblock %}
-{% block header_title %}Dashboard{% endblock %}
-{% block header_subtitle %}Real-time overview of DNS activity and security status.{% endblock %}
+{% block title %}DNSWatch - Security Operations Center Dashboard{% endblock %}
+{% block header_title %}SOC Dashboard{% endblock %}
+{% block header_subtitle %}Real-time overview of network DNS traffic, security telemetry, and threat prevention.{% endblock %}
 
 {% block content %}
 <!-- Top Metrics Row -->
@@ -15,7 +15,7 @@
       <div class="stat-label">Total DNS Queries</div>
       <div class="stat-value" id="dash-total-queries">0</div>
       <div class="stat-subtext up">
-        <i class="fa-solid fa-arrow-trend-up"></i> <span>Live network capture</span>
+        <i class="fa-solid fa-bolt"></i> <span>Live network capture active</span>
       </div>
     </div>
   </div>
@@ -27,8 +27,8 @@
     <div class="stat-content">
       <div class="stat-label">Suspicious Requests</div>
       <div class="stat-value" id="dash-suspicious-queries">0</div>
-      <div class="stat-subtext up">
-        <i class="fa-solid fa-triangle-exclamation"></i> <span>Requires attention</span>
+      <div class="stat-subtext warn">
+        <i class="fa-solid fa-triangle-exclamation"></i> <span>Requires SOC triage</span>
       </div>
     </div>
   </div>
@@ -41,7 +41,7 @@
       <div class="stat-label">Blocked Requests</div>
       <div class="stat-value" id="dash-blocked-queries">0</div>
       <div class="stat-subtext down">
-        <i class="fa-solid fa-shield"></i> <span>Blocked by security rules</span>
+        <i class="fa-solid fa-shield-halved"></i> <span>Enforced by DNS rules</span>
       </div>
     </div>
   </div>
@@ -53,12 +53,17 @@
   <div class="card">
     <div class="card-header">
       <div class="card-header-left">
-        <h3>Live DNS Requests</h3>
-        <p>Real-time DNS queries being captured in the network.</p>
+        <h3><i class="fa-solid fa-wave-square" style="color: var(--brand-primary);"></i> Live DNS Query Stream</h3>
+        <p>Real-time packet inspection of port 53 DNS queries.</p>
       </div>
-      <a href="{{ url_for('views.dns_logs_page') }}" class="btn btn-outline btn-sm">
-        View All Logs <i class="fa-solid fa-arrow-right"></i>
-      </a>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-outline btn-sm" onclick="refreshDashboard()" title="Refresh Feed">
+          <i class="fa-solid fa-rotate-right"></i> Refresh
+        </button>
+        <a href="{{ url_for('views.dns_logs_page') }}" class="btn btn-primary btn-sm">
+          <span>All Logs</span> <i class="fa-solid fa-arrow-right"></i>
+        </a>
+      </div>
     </div>
 
     <div class="table-responsive">
@@ -68,15 +73,15 @@
             <th>Time</th>
             <th>Client IP</th>
             <th>Domain / Query</th>
-            <th>Query Type</th>
+            <th>Type</th>
             <th>Response IP</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody id="dash-dns-tbody">
           <tr>
-            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
-              <i class="fa-solid fa-spinner fa-spin" style="font-size: 20px; margin-bottom: 8px;"></i>
+            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">
+              <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 24px; margin-bottom: 12px; color: var(--brand-primary);"></i>
               <div>Waiting for captured DNS traffic...</div>
             </td>
           </tr>
@@ -86,10 +91,8 @@
 
     <div class="pagination-container">
       <div id="dash-dns-counter">Showing 0 recent entries</div>
-      <div class="toolbar-right">
-        <button class="btn btn-outline btn-sm" onclick="refreshDashboard()" title="Refresh Data">
-          <i class="fa-solid fa-rotate-right"></i> Refresh
-        </button>
+      <div style="font-size: 11.5px; color: var(--text-light); display: flex; align-items: center; gap: 6px;">
+        <span class="status-dot active" style="width: 7px; height: 7px;"></span> Auto-sync active (1.5s)
       </div>
     </div>
   </div>
@@ -100,16 +103,18 @@
     <div class="card">
       <div class="card-header">
         <div class="card-header-left">
-          <h3>Recent Security Alerts</h3>
+          <h3><i class="fa-solid fa-shield-halved" style="color: var(--brand-danger);"></i> Recent Security Incidents</h3>
+          <p>High-risk detections &amp; domain threats.</p>
         </div>
         <a href="{{ url_for('views.security_alerts_page') }}" class="btn btn-outline btn-sm">
-          View All Alerts
+          View All
         </a>
       </div>
       <div class="card-body">
         <div class="recent-alerts-list" id="dash-alerts-container">
-          <div style="text-align: center; color: var(--text-muted); padding: 20px 0;">
-            No recent alerts triggered.
+          <div style="text-align: center; color: var(--text-muted); padding: 25px 0;">
+            <i class="fa-solid fa-circle-check" style="color: var(--brand-success); font-size: 22px; margin-bottom: 8px;"></i>
+            <div>No recent alerts triggered.</div>
           </div>
         </div>
       </div>
@@ -119,33 +124,45 @@
     <div class="card">
       <div class="card-header">
         <div class="card-header-left">
-          <h3>System Status</h3>
+          <h3><i class="fa-solid fa-microchip" style="color: var(--brand-info);"></i> System &amp; Engine Telemetry</h3>
         </div>
       </div>
       <div class="card-body">
         <div class="system-status-list">
           <div class="status-row">
-            <span class="status-row-label">Monitoring Status</span>
+            <span class="status-row-label">
+              <i class="fa-solid fa-tower-broadcast" style="color: var(--brand-primary); font-size: 12px;"></i> Packet Sniffer
+            </span>
             <span class="status-row-value" id="status-mon-label">
-              <span class="badge {% if monitoring.is_running %}badge-safe{% endif %}" id="status-mon-badge" {% if not monitoring.is_running %}style="background: #f1f5f9; color: #64748b;"{% endif %}>
+              <span class="badge {% if monitoring.is_running %}badge-safe{% else %}badge-blocked{% endif %}" id="status-mon-badge">
                 {% if monitoring.is_running %}Active{% else %}Inactive{% endif %}
               </span>
             </span>
           </div>
           <div class="status-row">
-            <span class="status-row-label">Packets Captured</span>
+            <span class="status-row-label">
+              <i class="fa-solid fa-cubes-stacked" style="color: var(--brand-purple); font-size: 12px;"></i> Captured Packets
+            </span>
             <span class="status-row-value" id="status-packets-count">{{ monitoring.total_queries or 0 }}</span>
           </div>
           <div class="status-row">
-            <span class="status-row-label">Database Status</span>
-            <span class="status-row-value" style="color: var(--success);"><i class="fa-solid fa-circle-check"></i> Connected</span>
+            <span class="status-row-label">
+              <i class="fa-solid fa-database" style="color: var(--brand-success); font-size: 12px;"></i> MySQL Database
+            </span>
+            <span class="status-row-value" style="color: var(--brand-success);">
+              <i class="fa-solid fa-circle-check"></i> Connected
+            </span>
           </div>
           <div class="status-row">
-            <span class="status-row-label">Last Packet Captured</span>
+            <span class="status-row-label">
+              <i class="fa-solid fa-clock-rotate-left" style="color: var(--brand-warning); font-size: 12px;"></i> Last Seen Packet
+            </span>
             <span class="status-row-value" id="status-last-packet">{{ monitoring.last_packet_time or 'None' }}</span>
           </div>
           <div class="status-row">
-            <span class="status-row-label">System Uptime</span>
+            <span class="status-row-label">
+              <i class="fa-solid fa-stopwatch" style="color: var(--brand-info); font-size: 12px;"></i> System Uptime
+            </span>
             <span class="status-row-value" id="status-uptime">{{ monitoring.uptime or '00:00:00' }}</span>
           </div>
         </div>
@@ -153,8 +170,110 @@
     </div>
   </div>
 </div>
+
+<!-- =====================================================================
+     Live Web Portal Viewers (Admin / Security Analyst Only)
+     Real-time visibility into who is accessing the web portal right now.
+     ===================================================================== -->
+{% if current_user.is_admin or current_user.is_analyst %}
+<div class="card" style="margin-top: 24px;" id="portal-viewers-card">
+  <div class="card-header">
+    <div class="card-header-left">
+      <h3>
+        <i class="fa-solid fa-eye" style="color: var(--brand-purple);"></i>
+        Live Web Portal Viewers
+        <span class="notification-badge" id="online-viewers-badge" style="margin-left:8px;background:var(--brand-purple);">0</span>
+      </h3>
+      <p>Real-time monitoring of authenticated users currently accessing this web system.</p>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <select id="viewer-role-filter" class="filter-select" onchange="loadPortalViewers()" style="min-width:140px;">
+        <option value="">All Roles</option>
+        <option value="Viewer">Viewer</option>
+        <option value="Security Analyst">Security Analyst</option>
+        <option value="Administrator">Administrator</option>
+      </select>
+      <button class="btn btn-outline btn-sm" onclick="loadPortalViewers()" title="Refresh viewer list">
+        <i class="fa-solid fa-rotate-right"></i> Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:flex; gap:16px; padding:16px 20px 0; flex-wrap:wrap;">
+    <div style="background:var(--bg-surface-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:12px 20px;display:flex;align-items:center;gap:12px;flex:1;min-width:160px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:rgba(139,92,246,0.15);display:flex;align-items:center;justify-content:center;">
+        <i class="fa-solid fa-circle-dot" style="color:var(--brand-purple);font-size:14px;"></i>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Currently Online</div>
+        <div style="font-size:22px;font-weight:700;color:var(--text-main);" id="viewers-online-count">0</div>
+      </div>
+    </div>
+    <div style="background:var(--bg-surface-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:12px 20px;display:flex;align-items:center;gap:12px;flex:1;min-width:160px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center;">
+        <i class="fa-solid fa-users" style="color:#6366f1;font-size:14px;"></i>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Total Sessions Today</div>
+        <div style="font-size:22px;font-weight:700;color:var(--text-main);" id="viewers-total-count">0</div>
+      </div>
+    </div>
+    <div style="background:var(--bg-surface-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:12px 20px;display:flex;align-items:center;gap:12px;flex:1;min-width:160px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;">
+        <i class="fa-solid fa-shield-check" style="color:var(--brand-success);font-size:14px;"></i>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Last Refresh</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-main);" id="viewers-last-refresh">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive" style="margin-top:16px;">
+    <table class="custom-table" id="table-portal-viewers">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Username</th>
+          <th>Role</th>
+          <th>IP Address</th>
+          <th>Browser / OS</th>
+          <th>Current Page</th>
+          <th>Session Duration</th>
+          <th>Last Seen</th>
+          {% if current_user.is_admin %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody id="portal-viewers-tbody">
+        <tr>
+          <td colspan="{% if current_user.is_admin %}9{% else %}8{% endif %}" style="text-align:center;color:var(--text-muted);padding:40px;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--brand-purple);margin-bottom:10px;"></i>
+            <div>Loading portal viewer sessions...</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pagination-container">
+    <div id="viewers-counter" style="color:var(--text-muted);font-size:12px;">Loading...</div>
+    <div style="font-size:11.5px;color:var(--text-light);display:flex;align-items:center;gap:6px;">
+      <span class="status-dot active" style="width:7px;height:7px;background:var(--brand-purple);box-shadow:0 0 6px var(--brand-purple);"></span>
+      Auto-refresh (15s)
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
+<script>
+// Determine if current user is admin (passed from Jinja)
+const IS_ADMIN = {{ 'true' if current_user.is_admin else 'false' }};
+const IS_ANALYST = {{ 'true' if current_user.is_analyst else 'false' }};
+</script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
+

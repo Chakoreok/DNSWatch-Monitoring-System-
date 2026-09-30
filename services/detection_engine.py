@@ -4,8 +4,9 @@ import uuid
 import threading
 from collections import defaultdict, deque
 from datetime import datetime
+from flask import has_app_context
 from database import db
-from models import MaliciousDomain, DetectionRule, FrequencyRuleConfig, SecurityAlert
+from models import MaliciousDomain, DetectionRule, FrequencyRuleConfig, SecurityAlert, ManualBlockRule
 
 # List of generic words that must never trigger broad substring matching on legitimate domains
 GENERIC_SAFE_WORDS = {
@@ -24,6 +25,7 @@ class DetectionEngine:
     
     def __init__(self):
         self._lock = threading.RLock()
+        self.app = None
         
         # In-memory caches for fast local matching
         self.malicious_domains = {}  # domain.lower() -> MaliciousDomain dict
@@ -44,9 +46,23 @@ class DetectionEngine:
         
         self.last_cache_reload = 0
         self.cache_ttl = 15  # seconds
+
+        # Manual block rules (Tier 0 — admin-approved, highest priority)
+        self.manual_block_rules = {}  # normalized_domain -> {'domain':..., 'reason':...}
+        
+    def init_app(self, app):
+        self.app = app
         
     def reload_cache(self, app=None):
         """Loads malicious domains and detection rules from MySQL into memory."""
+        target_app = app or self.app
+        if not has_app_context() and target_app:
+            with target_app.app_context():
+                self._do_reload_cache()
+        else:
+            self._do_reload_cache()
+
+    def _do_reload_cache(self):
         try:
             with self._lock:
                 # 1. Load Malicious Domains
@@ -108,8 +124,34 @@ class DetectionEngine:
                     self.frequency_status = freq_config.status
                     
                 self.last_cache_reload = time.time()
+                # Also load manual block rules (Tier 0)
+                self._load_manual_block_rules()
         except Exception as e:
             print(f"[DetectionEngine] Cache reload error: {e}")
+
+    def _load_manual_block_rules(self):
+        """Internal: load active ManualBlockRule records (call inside _lock)."""
+        try:
+            active = ManualBlockRule.query.filter_by(is_active=True).all()
+            self.manual_block_rules = {
+                r.domain.strip().lower().rstrip('.'): {
+                    'domain': r.domain.strip().lower().rstrip('.'),
+                    'reason': r.reason or ''
+                }
+                for r in active
+            }
+        except Exception:
+            # Table may not exist yet (pre-migration). Silently skip.
+            self.manual_block_rules = {}
+
+
+    def reload_manual_blocks(self):
+        """
+        Public method called by blocking routes after every rule change.
+        Refreshes the Tier-0 in-memory cache without touching other caches.
+        """
+        with self._lock:
+            self._load_manual_block_rules()
 
     def normalize_domain(self, domain_name):
         """Standardizes domain format for accurate rule matching."""
@@ -162,6 +204,45 @@ class DetectionEngine:
                 self.reload_cache()
             except Exception:
                 pass
+
+        # =============================================================
+        # TIER 0: Manual Block Rules (highest priority)
+        # Admin-approved explicit blocks. The DNS sinkhole returns
+        # NXDOMAIN; the detection engine labels the log entry BLOCKED.
+        # =============================================================
+        with self._lock:
+            manual_match = None
+            if domain in self.manual_block_rules:
+                manual_match = self.manual_block_rules[domain]
+            else:
+                # Subdomain check (boundary-safe)
+                parts = domain.split('.')
+                for i in range(1, len(parts)):
+                    candidate = '.'.join(parts[i:])
+                    if candidate in self.manual_block_rules:
+                        manual_match = self.manual_block_rules[candidate]
+                        break
+
+            if manual_match:
+                status = 'BLOCKED'
+                detection_reason = f"Manual Block Rule: {manual_match['domain']}"
+                activity_category = 'Manually blocked'
+                if self._should_generate_alert(client_ip, domain, 'Blocked domain request'):
+                    alert_dict = {
+                        'alert_id': f"ALT-BLK-{int(now)}-{uuid.uuid4().hex[:6].upper()}",
+                        'timestamp': now_dt,
+                        'severity': 'HIGH',
+                        'domain': domain,
+                        'client_ip': client_ip,
+                        'alert_type': 'Blocked domain request',
+                        'description': (
+                            f"DNS query for '{domain}' was blocked by the manual block rule "
+                            f"for '{manual_match['domain']}'. "
+                            f"Reason: {manual_match.get('reason') or 'No reason specified'}."
+                        ),
+                        'status': 'New'
+                    }
+                return status, detection_reason, None, alert_dict, activity_category
 
         # -------------------------------------------------------------
         # DETECTION METHOD 1: Malicious Domain List Matching
