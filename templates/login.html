@@ -588,6 +588,40 @@
   </div>
 
   <script>
+    function showToast(message, type = 'info', duration = 3000) {
+      let container = document.getElementById('global-toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'global-toast-container';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+      }
+
+      const toast = document.createElement('div');
+      toast.className = `toast-item toast-${type}`;
+
+      let iconHtml = '<i class="fa-solid fa-circle-info"></i>';
+      if (type === 'success') iconHtml = '<i class="fa-solid fa-circle-check"></i>';
+      if (type === 'danger') iconHtml = '<i class="fa-solid fa-circle-xmark"></i>';
+      if (type === 'warning') iconHtml = '<i class="fa-solid fa-triangle-exclamation"></i>';
+
+      toast.innerHTML = `
+        ${iconHtml}
+        <div style="flex: 1; line-height: 1.35;">${message}</div>
+      `;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('toast-hiding');
+        setTimeout(() => {
+          if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+          }
+        }, 250);
+      }, duration);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       const initTab = document.body.getAttribute('data-initial-tab') || 'login';
       const hash = window.location.hash.replace('#', '');
@@ -646,7 +680,9 @@
     function fillDemoCreds(u, p) {
       document.getElementById('login-email').value = u;
       document.getElementById('login-password').value = p;
-      showToast(`Loaded ${u} credentials`, 'info', 1500);
+      try {
+        showToast(`Loaded ${u} credentials`, 'info', 1500);
+      } catch (e) {}
     }
 
     function checkPasswordStrength(val) {
@@ -712,10 +748,12 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast('Login successful! Entering SOC...', 'success', 2000);
+          try {
+            showToast('Login successful! Entering SOC...', 'success', 2000);
+          } catch (e) {}
           setTimeout(() => {
             window.location.href = data.redirect || '/dashboard';
-          }, 400);
+          }, 300);
         } else {
           errBox.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${data.message || 'Invalid username or password.'}`;
           errBox.style.display = 'block';
@@ -764,10 +802,12 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast('Account registered! Redirecting to Dashboard...', 'success', 2000);
+          try {
+            showToast('Account registered! Redirecting to Dashboard...', 'success', 2000);
+          } catch (e) {}
           setTimeout(() => {
             window.location.href = data.redirect || '/dashboard';
-          }, 500);
+          }, 400);
         } else {
           errBox.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${data.message || 'Registration failed.'}`;
           errBox.style.display = 'block';

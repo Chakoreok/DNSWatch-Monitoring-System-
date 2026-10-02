@@ -271,8 +271,8 @@
 {% block scripts %}
 <script>
 // Determine if current user is admin (passed from Jinja)
-const IS_ADMIN = {{ 'true' if current_user.is_admin else 'false' }};
-const IS_ANALYST = {{ 'true' if current_user.is_analyst else 'false' }};
+const IS_ADMIN = "{{ 'true' if current_user.is_admin else 'false' }}" === "true";
+const IS_ANALYST = "{{ 'true' if current_user.is_analyst else 'false' }}" === "true";
 </script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
