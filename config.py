@@ -3,8 +3,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Detect if running on Railway
+# Detect if running on a production platform (Railway or Render)
 IS_RAILWAY = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PROJECT_ID"))
+IS_RENDER  = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"))
+IS_PRODUCTION = IS_RAILWAY or IS_RENDER
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dnswatch-default-secret-key-2026")
@@ -47,7 +49,7 @@ class Config:
     DEFAULT_FREQUENCY_WINDOW    = int(os.getenv("DEFAULT_FREQUENCY_WINDOW",    "60"))
 
     # Session / Cookie security
-    # On Railway the app sits behind HTTPS — enable Secure cookies in production
-    SESSION_COOKIE_SECURE   = IS_RAILWAY          # True on Railway (HTTPS), False locally
+    # Enable Secure cookies on any production platform (Railway, Render, etc.)
+    SESSION_COOKIE_SECURE   = IS_PRODUCTION
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_HTTPONLY = True

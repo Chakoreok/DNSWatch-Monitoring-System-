@@ -1,0 +1,22 @@
+﻿services:
+  - type: web
+    name: dnswatch
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app --bind 0.0.0.0: --workers 2 --threads 4 --timeout 120 --log-level info
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_PORT
+        value: 3306
+      - key: PYTHON_VERSION
+        value: 3.11.0
