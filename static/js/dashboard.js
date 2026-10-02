@@ -315,7 +315,7 @@ async function endPortalSession(sessionId, username) {
       if (typeof showToast === 'function') showToast(data.message, 'success');
       loadPortalViewers();
     } else {
-      if (typeof showToast === 'function') showToast(data.message || 'Failed to end session.', 'error');
+      if (typeof showToast === 'function') showToast(data.message || 'Failed to end session.', 'danger');
     }
   } catch (err) {
     console.error('Error ending portal session:', err);

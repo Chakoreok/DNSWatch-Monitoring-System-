@@ -57,10 +57,12 @@ def create_app(config_class=Config):
     
     with app.app_context():
         try:
+            # Auto-create all DB tables on first deploy (safe to run repeatedly)
+            db.create_all()
             # Preload detection engine rules from MySQL
             detection_engine.reload_cache()
         except Exception as e:
-            print(f"[DNSWatch] Note: Cache reload deferred until DB is initialized: {e}")
+            print(f"[DNSWatch] Note: Startup DB init deferred: {e}")
             
     return app
 

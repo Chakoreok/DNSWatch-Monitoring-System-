@@ -649,7 +649,7 @@ async function endSettingsSession(sessionId, username) {
       if (typeof showToast === 'function') showToast(data.message, 'success');
       loadSettingsViewers();
     } else {
-      if (typeof showToast === 'function') showToast(data.message || 'Failed.', 'error');
+      if (typeof showToast === 'function') showToast(data.message || 'Failed.', 'danger');
     }
   } catch (err) { console.error(err); }
 }
@@ -662,7 +662,7 @@ async function cleanupPortalSessions() {
       credentials: 'same-origin'
     });
     const data = await res.json();
-    if (typeof showToast === 'function') showToast(data.message, data.success ? 'success' : 'error');
+    if (typeof showToast === 'function') showToast(data.message, data.success ? 'success' : 'danger');
     if (data.success) loadSettingsViewers();
   } catch (err) { console.error(err); }
 }

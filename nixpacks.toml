@@ -1,0 +1,11 @@
+﻿# Tells Nixpacks (Railway's build system) to install libpcap for Scapy
+# and set the Python version explicitly.
+
+[phases.setup]
+nixPkgs = ["libpcap", "python313"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "gunicorn run:app --bind 0.0.0.0: --workers 2 --threads 4 --timeout 120 --log-level info"
