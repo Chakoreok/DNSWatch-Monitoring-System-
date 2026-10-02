@@ -226,6 +226,9 @@ class DNSSnifferService:
     def get_status(self):
         """Returns real-time status summary for UI and API."""
         with self._lock:
+            if self.is_running and self.sniff_thread and not self.sniff_thread.is_alive():
+                self.is_running = False
+
             uptime_seconds = 0
             if self.is_running and self.start_timestamp:
                 uptime_seconds = int((datetime.utcnow() - self.start_timestamp).total_seconds())
@@ -300,6 +303,10 @@ class DNSSnifferService:
             sniff(**sniff_kwargs)
         except Exception as e:
             print(f"[DNSSniffer] Sniffer stopped or encountered interface error: {e}")
+        finally:
+            with self._lock:
+                self.is_running = False
+                print("[DNSSniffer] Background sniffer thread terminated.")
 
     def _process_scapy_packet(self, pkt):
         """Extracts individual DNS packet information and evaluates rules."""
