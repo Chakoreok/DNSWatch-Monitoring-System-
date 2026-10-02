@@ -34,8 +34,9 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_recycle": 280,
         "pool_pre_ping": True,
-        "pool_size": 10,
-        "max_overflow": 20,
+        "pool_size": 3 if IS_PRODUCTION else 5,
+        "max_overflow": 2 if IS_PRODUCTION else 5,
+        "pool_timeout": 30,
     }
 
     # Sniffer Settings

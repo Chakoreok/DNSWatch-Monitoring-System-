@@ -73,25 +73,42 @@ def get_dns_logs():
         }
     })
 
+from sqlalchemy import func
+import time
+
+_stats_cache = {'timestamp': 0, 'data': None}
+
 @dns_bp.route('/api/dns/stats', methods=['GET'])
 def get_dns_stats():
-    total_queries = DNSLog.query.count()
-    suspicious_count = DNSLog.query.filter_by(status='SUSPICIOUS').count()
-    blocked_count = DNSLog.query.filter_by(status='BLOCKED').count()
-    safe_count = DNSLog.query.filter_by(status='SAFE').count()
-    
+    now = time.time()
+    if _stats_cache['data'] and (now - _stats_cache['timestamp'] < 3.0):
+        return jsonify(_stats_cache['data'])
+
+    try:
+        counts = dict(db.session.query(DNSLog.status, func.count(DNSLog.id)).group_by(DNSLog.status).all())
+    except Exception:
+        counts = {}
+
+    total_queries = sum(counts.values())
+    suspicious_count = counts.get('SUSPICIOUS', 0)
+    blocked_count = counts.get('BLOCKED', 0)
+    safe_count = counts.get('SAFE', 0)
+
     # If sniffer is currently active, take current max between in-memory and db
     mon_status = sniffer_service.get_status()
-    if mon_status['is_running']:
-        total_queries = max(total_queries, mon_status['total_queries'])
-        suspicious_count = max(suspicious_count, mon_status['suspicious_queries'])
-        blocked_count = max(blocked_count, mon_status['blocked_queries'])
-        safe_count = max(safe_count, mon_status['safe_queries'])
-        
-    return jsonify({
+    if mon_status.get('is_running'):
+        total_queries = max(total_queries, mon_status.get('total_queries', 0))
+        suspicious_count = max(suspicious_count, mon_status.get('suspicious_queries', 0))
+        blocked_count = max(blocked_count, mon_status.get('blocked_queries', 0))
+        safe_count = max(safe_count, mon_status.get('safe_queries', 0))
+
+    payload = {
         'success': True,
         'total_queries': total_queries,
         'safe_queries': safe_count,
         'suspicious_queries': suspicious_count,
         'blocked_queries': blocked_count
-    })
+    }
+    _stats_cache['timestamp'] = now
+    _stats_cache['data'] = payload
+    return jsonify(payload)

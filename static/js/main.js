@@ -15,8 +15,12 @@ document.addEventListener('DOMContentLoaded', () => {
     previousMonitoringRunning = globalMonitoringActive;
   }
   pollGlobalStatus();
-  // Poll monitoring status every 1.5 seconds for instant synchronization
-  setInterval(pollGlobalStatus, 1500);
+  // Poll monitoring status every 5 seconds (paused when tab is hidden in background)
+  setInterval(() => {
+    if (!document.hidden) {
+      pollGlobalStatus();
+    }
+  }, 5000);
 });
 
 // --------------------------------------------------------------------------

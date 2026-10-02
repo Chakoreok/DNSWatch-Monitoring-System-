@@ -7,22 +7,26 @@ let viewersPollInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   refreshDashboard();
-  // Live polling every 1.5 seconds when monitoring is active
+  // Live polling every 4 seconds when monitoring is active (paused when tab in background)
   dashboardPollInterval = setInterval(() => {
-    if (globalMonitoringActive) {
+    if (globalMonitoringActive && !document.hidden) {
       refreshDashboard();
     }
-  }, 1500);
+  }, 4000);
 
   // Listen to monitoring state changes
   document.addEventListener('monitoringStateChanged', () => {
     refreshDashboard();
   });
 
-  // Portal viewers: load immediately, then every 15s (admin/analyst only)
+  // Portal viewers: load immediately, then every 20s (admin/analyst only, paused when in background)
   if (typeof IS_ADMIN !== 'undefined' && (IS_ADMIN || IS_ANALYST)) {
     loadPortalViewers();
-    viewersPollInterval = setInterval(loadPortalViewers, 15000);
+    viewersPollInterval = setInterval(() => {
+      if (!document.hidden) {
+        loadPortalViewers();
+      }
+    }, 20000);
   }
 });
 

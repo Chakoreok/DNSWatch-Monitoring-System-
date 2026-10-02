@@ -74,20 +74,41 @@ def get_alerts():
         }
     })
 
+from sqlalchemy import func
+import time
+
+_alerts_counts_cache = {'timestamp': 0, 'data': None}
+
 @alerts_bp.route('/api/alerts/counts', methods=['GET'])
 def get_alert_counts():
-    high_count = SecurityAlert.query.filter(SecurityAlert.severity.ilike('HIGH')).count()
-    medium_count = SecurityAlert.query.filter(SecurityAlert.severity.ilike('MEDIUM')).count()
-    low_count = SecurityAlert.query.filter(SecurityAlert.severity.ilike('LOW')).count()
-    total_count = SecurityAlert.query.count()
-    
-    return jsonify({
+    now = time.time()
+    if _alerts_counts_cache['data'] and (now - _alerts_counts_cache['timestamp'] < 3.0):
+        return jsonify(_alerts_counts_cache['data'])
+
+    try:
+        raw_counts = dict(
+            db.session.query(func.upper(SecurityAlert.severity), func.count(SecurityAlert.id))
+            .group_by(func.upper(SecurityAlert.severity))
+            .all()
+        )
+    except Exception:
+        raw_counts = {}
+
+    high_count = raw_counts.get('HIGH', 0)
+    medium_count = raw_counts.get('MEDIUM', 0)
+    low_count = raw_counts.get('LOW', 0)
+    total_count = sum(raw_counts.values())
+
+    payload = {
         'success': True,
         'high': high_count,
         'medium': medium_count,
         'low': low_count,
         'total': total_count
-    })
+    }
+    _alerts_counts_cache['timestamp'] = now
+    _alerts_counts_cache['data'] = payload
+    return jsonify(payload)
 
 @alerts_bp.route('/api/alerts/<id>/status', methods=['PUT'])
 def update_alert_status(id):
