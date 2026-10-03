@@ -2,24 +2,11 @@ import os
 from flask import Flask
 from flask_login import LoginManager
 from config import Config
-from database import db
+from database import db, ensure_schema
 from models import User
 from services.sniffer import sniffer_service
 from services.detection_engine import detection_engine
 from services.dns_sinkhole import dns_sinkhole_service
-
-def ensure_schema():
-    """Adds columns introduced after the initial deploy. db.create_all() only
-    creates missing tables; it never alters existing ones."""
-    from sqlalchemy import inspect, text
-    try:
-        cols = {c['name'] for c in inspect(db.engine).get_columns('monitoring_sessions')}
-        if 'last_heartbeat' not in cols:
-            with db.engine.begin() as conn:
-                conn.execute(text("ALTER TABLE monitoring_sessions ADD COLUMN last_heartbeat DATETIME NULL"))
-            print("[DNSWatch] Added monitoring_sessions.last_heartbeat column.")
-    except Exception as e:
-        print(f"[DNSWatch] Schema check skipped: {e}")
 
 def seed_defaults():
     """Seeds default roles, users, and rules on first deploy if database is empty."""
@@ -144,7 +131,11 @@ def create_app(config_class=Config):
         try:
             # Auto-create all DB tables on first deploy (safe to run repeatedly)
             db.create_all()
-            ensure_schema()
+        except Exception as e:
+            print(f"[DNSWatch] Note: create_all deferred: {e}")
+        # Retried lazily by the sniffer if this attempt fails
+        ensure_schema()
+        try:
             seed_defaults()
             # Preload detection engine rules from MySQL
             detection_engine.reload_cache()

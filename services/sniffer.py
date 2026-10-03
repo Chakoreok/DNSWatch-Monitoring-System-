@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from collections import deque
 from scapy.all import sniff, conf, get_if_list, IP, IPv6, UDP, TCP, Ether, DNS, DNSQR, DNSRR
 from config import IS_PRODUCTION
-from database import db
+from database import db, ensure_schema
 from models import MonitoringSession, DNSLog, SecurityAlert
 from services.detection_engine import detection_engine
 from services.device_tracker import device_tracker
@@ -166,6 +166,7 @@ class DNSSnifferService:
             # Reload detection rules cache
             if self.app:
                 with self.app.app_context():
+                    ensure_schema()
                     detection_engine.reload_cache()
                     
                     session_rec = MonitoringSession(
@@ -768,6 +769,9 @@ class DNSSnifferService:
         try:
             with self.app.app_context():
                 now = datetime.utcnow()
+                schema_ok, _ = ensure_schema()
+                if not schema_ok:
+                    raise RuntimeError("database schema is not up to date yet")
 
                 # Drop expired start requests nobody picked up
                 cutoff = now - timedelta(seconds=START_REQUEST_TTL)
@@ -819,6 +823,10 @@ class DNSSnifferService:
 
     def _request_remote_start(self, user_id=None):
         """Cloud: queues a start command for the local sensor."""
+        with self.app.app_context():
+            schema_ok, schema_err = ensure_schema()
+        if not schema_ok:
+            return False, f"Database upgrade failed, so the start command can't be sent: {schema_err}"
         current = self._get_remote_status(use_cache=False)
         if current['is_running']:
             return False, "The local sensor is already capturing."
