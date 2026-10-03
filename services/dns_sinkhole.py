@@ -290,6 +290,14 @@ class DNSSinkholeService:
             if self.is_running:
                 return False, "DNS Sinkhole is already running."
 
+        from config import IS_PRODUCTION
+        if IS_PRODUCTION:
+            return False, (
+                "The DNS Sinkhole must run on your local sensor (python run.py), because cloud "
+                "hosts don't allow serving DNS on UDP port 53. Block rules you add here are "
+                "shared through the database and enforced by the local sinkhole."
+            )
+
         if port is not None:
             self.port = int(port)
         if upstream_dns:

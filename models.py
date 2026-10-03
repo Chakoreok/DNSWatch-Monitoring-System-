@@ -86,7 +86,7 @@ class MonitoringSession(BaseModel):
     session_name = db.Column(db.String(100), nullable=False)
     start_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     end_time = db.Column(db.DateTime, nullable=True)
-    status = db.Column(db.String(30), nullable=False, default='ACTIVE')  # ACTIVE, STOPPED
+    status = db.Column(db.String(30), nullable=False, default='ACTIVE')  # ACTIVE, STOPPED, START_REQUESTED, STOP_REQUESTED
     interface = db.Column(db.String(100), nullable=True)
     total_queries = db.Column(db.Integer, nullable=False, default=0)
     safe_queries = db.Column(db.Integer, nullable=False, default=0)
@@ -94,6 +94,9 @@ class MonitoringSession(BaseModel):
     malicious_queries = db.Column(db.Integer, nullable=False, default=0)
     blocked_queries = db.Column(db.Integer, nullable=False, default=0)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    # Updated every few seconds (UTC) by the local sensor while capturing,
+    # so the cloud dashboard can tell whether the remote capture is alive.
+    last_heartbeat = db.Column(db.DateTime, nullable=True)
     
     logs = db.relationship('DNSLog', backref='session', lazy='dynamic')
     

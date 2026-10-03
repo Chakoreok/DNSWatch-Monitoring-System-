@@ -234,6 +234,10 @@ async function toggleGlobalMonitoring() {
     const data = await res.json();
     if (data.monitoring) {
       updateMonitoringUI(data.monitoring);
+    }
+    if (data.message) {
+      showToast(data.message, data.success ? 'success' : 'warning', 4000);
+    } else if (data.monitoring) {
       showToast(
         data.monitoring.is_running ? 'DNS Packet Sniffer activated successfully' : 'DNS Packet Sniffer stopped',
         data.monitoring.is_running ? 'success' : 'warning'

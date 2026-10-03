@@ -3,13 +3,20 @@
 import time
 import queue
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import deque
 from scapy.all import sniff, conf, get_if_list, IP, IPv6, UDP, TCP, Ether, DNS, DNSQR, DNSRR
+from config import IS_PRODUCTION
 from database import db
 from models import MonitoringSession, DNSLog, SecurityAlert
 from services.detection_engine import detection_engine
 from services.device_tracker import device_tracker
+
+# Cloud <-> local sensor coordination (both share the same MySQL database)
+HEARTBEAT_INTERVAL = 5          # seconds between local sensor heartbeats
+HEARTBEAT_TIMEOUT = 20          # cloud treats the sensor as offline after this
+COMMAND_POLL_INTERVAL = 4       # how often the local sensor checks for remote commands
+START_REQUEST_TTL = 60          # remote start requests expire after this many seconds
 
 DNS_QTYPE_MAP = {
     1: 'A',
@@ -52,6 +59,11 @@ class DNSSnifferService:
         # Real-time circular buffer for instant dashboard updates
         self.live_logs_buffer = deque(maxlen=100)
         self.recent_alerts_buffer = deque(maxlen=20)
+        
+        # Local sensor: background thread listening for commands from the cloud dashboard
+        self.agent_thread = None
+        # Cloud dashboard: short cache so frequent status polling doesn't overload MySQL
+        self._remote_status_cache = {'timestamp': 0, 'data': None}
         
     def init_app(self, app):
         self.app = app
@@ -120,6 +132,10 @@ class DNSSnifferService:
 
     def start_monitoring(self, interface=None, user_id=None):
         """Starts Scapy sniffing in a background thread."""
+        if IS_PRODUCTION:
+            # Cloud servers cannot capture packets; ask the local sensor to start instead.
+            return self._request_remote_start(user_id)
+            
         with self._lock:
             if self.is_running:
                 return False, "Monitoring is already active."
@@ -157,7 +173,8 @@ class DNSSnifferService:
                         start_time=self.start_timestamp,
                         status="ACTIVE",
                         interface=iface_display_name,
-                        created_by=user_id
+                        created_by=user_id,
+                        last_heartbeat=self.start_timestamp
                     )
                     db.session.add(session_rec)
                     db.session.commit()
@@ -184,6 +201,9 @@ class DNSSnifferService:
 
     def stop_monitoring(self):
         """Gracefully signals Scapy and DB writer to stop, waits for data flush."""
+        if IS_PRODUCTION:
+            return self._request_remote_stop()
+            
         with self._lock:
             if not self.is_running:
                 return False, "Monitoring is not currently active."
@@ -225,6 +245,9 @@ class DNSSnifferService:
 
     def get_status(self):
         """Returns real-time status summary for UI and API."""
+        if IS_PRODUCTION:
+            return self._get_remote_status()
+            
         with self._lock:
             if self.is_running and self.sniff_thread and not self.sniff_thread.is_alive():
                 self.is_running = False
@@ -556,6 +579,7 @@ class DNSSnifferService:
     def _db_writer_worker(self):
         """Asynchronously writes queued logs and alerts into MySQL in batches."""
         last_device_flush = time.time()
+        last_heartbeat = 0
         
         while self.is_running or not self.log_queue.empty():
             batch = []
@@ -575,6 +599,10 @@ class DNSSnifferService:
             if time.time() - last_device_flush > 5.0 and self.app:
                 device_tracker.flush_devices_to_db(self.app)
                 last_device_flush = time.time()
+                
+            if self.is_running and time.time() - last_heartbeat > HEARTBEAT_INTERVAL:
+                self._write_heartbeat()
+                last_heartbeat = time.time()
                 
             time.sleep(0.1)
         
@@ -634,5 +662,198 @@ class DNSSnifferService:
             except Exception as e:
                 db.session.rollback()
                 print(f"[DNSSniffer] DB batch insert error: {e}")
+
+    # ------------------------------------------------------------------
+    # Local sensor side: heartbeat + remote command listener
+    # ------------------------------------------------------------------
+
+    def _write_heartbeat(self):
+        """Marks the active session as alive and syncs live counters (local sensor)."""
+        if not (self.app and self.current_session_id):
+            return
+        with self.app.app_context():
+            try:
+                rec = MonitoringSession.query.get(self.current_session_id)
+                if rec:
+                    rec.last_heartbeat = datetime.utcnow()
+                    rec.total_queries = self.total_captured
+                    rec.safe_queries = self.safe_count
+                    rec.suspicious_queries = self.suspicious_count
+                    rec.blocked_queries = self.blocked_count
+                    db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f"[DNSSniffer] Heartbeat error: {e}")
+
+    def start_sensor_agent(self):
+        """Local sensor only: listens for Start/Stop commands sent from the cloud dashboard."""
+        if IS_PRODUCTION or not self.app:
+            return
+        if self.agent_thread and self.agent_thread.is_alive():
+            return
+        self.agent_thread = threading.Thread(
+            target=self._sensor_agent_loop,
+            daemon=True,
+            name="DNSWatch-SensorAgent"
+        )
+        self.agent_thread.start()
+        print("[DNSSniffer] Sensor agent listening for remote commands from the cloud dashboard.")
+
+    def _sensor_agent_loop(self):
+        while True:
+            time.sleep(COMMAND_POLL_INTERVAL)
+            should_stop = False
+            should_start = False
+            requested_by = None
+            try:
+                with self.app.app_context():
+                    if self.is_running and self.current_session_id:
+                        rec = MonitoringSession.query.get(self.current_session_id)
+                        should_stop = bool(rec and rec.status == 'STOP_REQUESTED')
+                    elif not self.is_running:
+                        cutoff = datetime.utcnow() - timedelta(seconds=START_REQUEST_TTL)
+                        req = (MonitoringSession.query
+                               .filter(MonitoringSession.status == 'START_REQUESTED',
+                                       MonitoringSession.start_time >= cutoff)
+                               .order_by(MonitoringSession.id.desc())
+                               .first())
+                        if req:
+                            should_start = True
+                            requested_by = req.created_by
+                            MonitoringSession.query.filter_by(status='START_REQUESTED') \
+                                .delete(synchronize_session=False)
+                            db.session.commit()
+            except Exception as e:
+                print(f"[DNSSniffer] Sensor agent poll error: {e}")
+                continue
+
+            if should_stop:
+                print("[DNSSniffer] Remote stop command received from cloud dashboard.")
+                self.stop_monitoring()
+            elif should_start:
+                print("[DNSSniffer] Remote start command received from cloud dashboard.")
+                ok, msg = self.start_monitoring(user_id=requested_by)
+                print(f"[DNSSniffer] {msg}")
+
+    # ------------------------------------------------------------------
+    # Cloud dashboard side: remote status + commands
+    # ------------------------------------------------------------------
+
+    def _get_remote_status(self, use_cache=True):
+        """Builds the monitoring status from the local sensor's heartbeat in MySQL."""
+        now_ts = time.time()
+        cache = self._remote_status_cache
+        if use_cache and cache['data'] and now_ts - cache['timestamp'] < 2.0:
+            return dict(cache['data'])
+
+        status = {
+            'is_running': False,
+            'status': 'Inactive',
+            'session_id': None,
+            'started_at': 'Not started',
+            'uptime': '00:00:00',
+            'last_packet_time': 'None',
+            'interface': 'Local sensor (offline)',
+            'total_queries': 0,
+            'safe_queries': 0,
+            'suspicious_queries': 0,
+            'blocked_queries': 0,
+            'mode': 'remote',
+            'sensor_online': False,
+            'pending_start': False
+        }
+        if not self.app:
+            return status
+
+        try:
+            with self.app.app_context():
+                now = datetime.utcnow()
+
+                # Drop expired start requests nobody picked up
+                cutoff = now - timedelta(seconds=START_REQUEST_TTL)
+                pending = MonitoringSession.query.filter_by(status='START_REQUESTED').all()
+                expired = [p for p in pending if p.start_time < cutoff]
+                if expired:
+                    for p in expired:
+                        db.session.delete(p)
+                    db.session.commit()
+                status['pending_start'] = len(pending) > len(expired)
+
+                sess = (MonitoringSession.query
+                        .filter(MonitoringSession.status.in_(['ACTIVE', 'STOP_REQUESTED']))
+                        .order_by(MonitoringSession.id.desc())
+                        .first())
+                alive = bool(sess and sess.last_heartbeat and
+                             (now - sess.last_heartbeat).total_seconds() <= HEARTBEAT_TIMEOUT)
+
+                counts = dict(db.session.query(DNSLog.status, db.func.count(DNSLog.id))
+                              .group_by(DNSLog.status).all())
+                status['total_queries'] = sum(counts.values())
+                status['safe_queries'] = counts.get('SAFE', 0)
+                status['suspicious_queries'] = counts.get('SUSPICIOUS', 0)
+                status['blocked_queries'] = counts.get('BLOCKED', 0)
+
+                latest_log = DNSLog.query.order_by(DNSLog.timestamp.desc()).first()
+                if latest_log and latest_log.timestamp:
+                    status['last_packet_time'] = latest_log.timestamp.strftime('%I:%M:%S %p')
+
+                if alive:
+                    uptime = int((now - sess.start_time).total_seconds())
+                    status.update({
+                        'is_running': True,
+                        'status': 'Active',
+                        'session_id': sess.id,
+                        'started_at': sess.start_time.strftime('%b %d, %Y %I:%M %p'),
+                        'uptime': f"{uptime // 3600:02d}:{(uptime % 3600) // 60:02d}:{uptime % 60:02d}",
+                        'interface': f"{sess.interface or 'Local sensor'} (remote sensor)",
+                        'sensor_online': True
+                    })
+                elif status['pending_start']:
+                    status['interface'] = 'Waiting for local sensor...'
+        except Exception as e:
+            print(f"[DNSSniffer] Remote status error: {e}")
+
+        cache['timestamp'] = now_ts
+        cache['data'] = dict(status)
+        return status
+
+    def _request_remote_start(self, user_id=None):
+        """Cloud: queues a start command for the local sensor."""
+        current = self._get_remote_status(use_cache=False)
+        if current['is_running']:
+            return False, "The local sensor is already capturing."
+        if current['pending_start']:
+            return True, "Start command already sent. Waiting for the local sensor to respond..."
+        try:
+            with self.app.app_context():
+                db.session.add(MonitoringSession(
+                    session_name="Remote start request",
+                    start_time=datetime.utcnow(),
+                    status='START_REQUESTED',
+                    interface='Remote request',
+                    created_by=user_id
+                ))
+                db.session.commit()
+        except Exception as e:
+            return False, f"Could not send start command: {e}"
+        self._remote_status_cache['data'] = None
+        return True, ("Start command sent to your local DNSWatch sensor. Capture begins within a few "
+                      "seconds if 'python run.py' is running on your network.")
+
+    def _request_remote_stop(self):
+        """Cloud: asks the local sensor to stop its active capture."""
+        current = self._get_remote_status(use_cache=False)
+        if not current['is_running'] or not current['session_id']:
+            return False, "No active capture on the local sensor."
+        try:
+            with self.app.app_context():
+                rec = MonitoringSession.query.get(current['session_id'])
+                if rec:
+                    rec.status = 'STOP_REQUESTED'
+                    db.session.commit()
+        except Exception as e:
+            return False, f"Could not send stop command: {e}"
+        self._remote_status_cache['data'] = None
+        return True, "Stop command sent to your local sensor. Capture will stop within a few seconds."
 
 sniffer_service = DNSSnifferService()
