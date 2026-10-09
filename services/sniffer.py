@@ -11,6 +11,7 @@ from database import db, ensure_schema
 from models import MonitoringSession, DNSLog, SecurityAlert
 from services.detection_engine import detection_engine
 from services.device_tracker import device_tracker
+from services.broadcaster import broadcaster
 
 # Cloud <-> local sensor coordination (both share the same MySQL database)
 HEARTBEAT_INTERVAL = 5          # seconds between local sensor heartbeats
@@ -448,6 +449,7 @@ class DNSSnifferService:
             'info': activity_category
         }
         self.live_logs_buffer.appendleft(ui_log_entry)
+        broadcaster.broadcast('dns_log', ui_log_entry)
         
         if alert_dict:
             ui_alert_entry = {
@@ -463,6 +465,7 @@ class DNSSnifferService:
                 'status': 'New'
             }
             self.recent_alerts_buffer.appendleft(ui_alert_entry)
+            broadcaster.broadcast('alert', ui_alert_entry)
             
         try:
             self.log_queue.put_nowait(log_payload)
@@ -523,6 +526,7 @@ class DNSSnifferService:
             'info': activity_category
         }
         self.live_logs_buffer.appendleft(ui_log_entry)
+        broadcaster.broadcast('dns_log', ui_log_entry)
         
         if alert_dict:
             ui_alert_entry = {
@@ -538,6 +542,7 @@ class DNSSnifferService:
                 'status': 'New'
             }
             self.recent_alerts_buffer.appendleft(ui_alert_entry)
+            broadcaster.broadcast('alert', ui_alert_entry)
             
         if not self.is_running and self.app:
             with self.app.app_context():
@@ -576,6 +581,186 @@ class DNSSnifferService:
                 pass
             
         return status, alert_dict
+
+    def ingest_sensor_batch(self, queries, sensor_name=None, interface=None):
+        """Processes a batch of real DNS packets forwarded from the local sensor."""
+        if not queries:
+            return 0, 0
+            
+        now_dt = datetime.utcnow()
+        self.last_packet_time = now_dt
+        alerts_count = 0
+        batch_to_persist = []
+        
+        # Ensure session or heartbeat updated
+        if self.app:
+            with self.app.app_context():
+                try:
+                    sess = MonitoringSession.query.filter_by(status='ACTIVE').order_by(MonitoringSession.id.desc()).first()
+                    if sess:
+                        sess.last_heartbeat = now_dt
+                        if interface:
+                            sess.interface = interface
+                        db.session.commit()
+                except Exception:
+                    pass
+
+        for q in queries:
+            domain = q.get('domain', '').strip().rstrip('.')
+            if not domain:
+                continue
+            client_ip = q.get('client_ip', '127.0.0.1')
+            client_mac = q.get('client_mac', None)
+            query_type = q.get('query_type', 'A')
+            response_ip = q.get('response_ip', '-')
+            response_code = q.get('response_code', 'NOERROR')
+            ttl = int(q.get('ttl', 300))
+            
+            # Normalize query type display
+            if isinstance(query_type, int) or (isinstance(query_type, str) and str(query_type).isdigit()):
+                query_type = DNS_QTYPE_MAP.get(int(query_type), str(query_type))
+                
+            status, detection_reason, matched_rule_id, alert_dict, activity_category = \
+                detection_engine.evaluate_dns_request(client_ip, domain, query_type)
+                
+            with self._lock:
+                self.total_captured += 1
+                if status == "SAFE":
+                    self.safe_count += 1
+                elif status == "SUSPICIOUS":
+                    self.suspicious_count += 1
+                elif status == "BLOCKED":
+                    self.blocked_count += 1
+                    
+            device_tracker.record_device_activity(client_ip, now_dt, client_mac=client_mac)
+            
+            log_payload = {
+                'session_id': self.current_session_id if self.is_running else None,
+                'timestamp': now_dt,
+                'client_ip': client_ip,
+                'client_port': 53,
+                'query_domain': domain,
+                'query_type': query_type,
+                'response_ip': response_ip or "",
+                'response_code': response_code,
+                'ttl': ttl,
+                'status': status,
+                'detection_reason': detection_reason,
+                'matched_rule_id': matched_rule_id,
+                'source': 'LOCAL_SENSOR',
+                'activity_category': activity_category,
+                'alert_dict': alert_dict
+            }
+            batch_to_persist.append(log_payload)
+            
+            ui_log_entry = {
+                'id': self.total_captured,
+                'time_only': now_dt.strftime('%I:%M:%S %p'),
+                'timestamp': now_dt.strftime('%Y-%m-%d %H:%M:%S'),
+                'client_ip': client_ip,
+                'domain': domain,
+                'query_domain': domain,
+                'query_type': query_type,
+                'response_ip': response_ip or "-",
+                'status': status,
+                'info': activity_category
+            }
+            self.live_logs_buffer.appendleft(ui_log_entry)
+            broadcaster.broadcast('dns_log', ui_log_entry)
+            
+            if alert_dict:
+                alerts_count += 1
+                ui_alert_entry = {
+                    'id': alert_dict['alert_id'],
+                    'alert_id': alert_dict['alert_id'],
+                    'time_only': now_dt.strftime('%I:%M:%S %p'),
+                    'timestamp': now_dt.strftime('%Y-%m-%d %H:%M:%S'),
+                    'severity': alert_dict['severity'],
+                    'domain': alert_dict['domain'],
+                    'client_ip': alert_dict['client_ip'],
+                    'alert_type': alert_dict['alert_type'],
+                    'description': alert_dict['description'],
+                    'status': 'New'
+                }
+                self.recent_alerts_buffer.appendleft(ui_alert_entry)
+                broadcaster.broadcast('alert', ui_alert_entry)
+
+        # Batch persist to DB
+        if batch_to_persist and self.app:
+            if self.is_running and self.db_writer_thread and self.db_writer_thread.is_alive():
+                for item in batch_to_persist:
+                    try:
+                        self.log_queue.put_nowait(item)
+                    except queue.Full:
+                        pass
+            else:
+                self._write_batch_to_db(batch_to_persist)
+                device_tracker.flush_devices_to_db(self.app)
+
+        return len(queries), alerts_count
+
+    def record_sensor_heartbeat(self, interface=None, is_capturing=False, total_captured=0, sensor_name=None):
+        """Records a heartbeat from the local sensor and returns remote command if any."""
+        now = datetime.utcnow()
+        command = "NONE"
+        if not self.app:
+            return command
+            
+        with self.app.app_context():
+            try:
+                ensure_schema()
+                # Check for active session or pending STOP
+                active_sess = (MonitoringSession.query
+                               .filter(MonitoringSession.status.in_(['ACTIVE', 'STOP_REQUESTED']))
+                               .order_by(MonitoringSession.id.desc())
+                               .first())
+                if active_sess:
+                    active_sess.last_heartbeat = now
+                    if total_captured:
+                        active_sess.total_queries = max(active_sess.total_queries or 0, total_captured)
+                    if interface:
+                        active_sess.interface = interface
+                    if active_sess.status == 'STOP_REQUESTED':
+                        command = "STOP"
+                        active_sess.status = 'STOPPED'
+                        active_sess.end_time = now
+                    db.session.commit()
+                else:
+                    # Check for pending START
+                    cutoff = now - timedelta(seconds=START_REQUEST_TTL)
+                    req = (MonitoringSession.query
+                           .filter(MonitoringSession.status == 'START_REQUESTED',
+                                   MonitoringSession.start_time >= cutoff)
+                           .order_by(MonitoringSession.id.desc())
+                           .first())
+                    if req:
+                        command = "START"
+                        req.status = 'ACTIVE'
+                        if interface:
+                            req.interface = interface
+                        req.last_heartbeat = now
+                        db.session.commit()
+                    else:
+                        # Keep a standby record alive so dashboard knows sensor is connected and ready
+                        standby_sess = MonitoringSession.query.filter_by(status='STANDBY').first()
+                        if not standby_sess:
+                            standby_sess = MonitoringSession(
+                                session_name="Sensor Standby",
+                                start_time=now,
+                                status='STANDBY',
+                                interface=interface or 'Local sensor',
+                                last_heartbeat=now
+                            )
+                            db.session.add(standby_sess)
+                        else:
+                            standby_sess.last_heartbeat = now
+                            if interface:
+                                standby_sess.interface = interface
+                        db.session.commit()
+            except Exception as e:
+                print(f"[DNSSniffer] Sensor heartbeat recording error: {e}")
+                
+        return command
 
     def _db_writer_worker(self):
         """Asynchronously writes queued logs and alerts into MySQL in batches."""
@@ -809,11 +994,20 @@ class DNSSnifferService:
                         'session_id': sess.id,
                         'started_at': sess.start_time.strftime('%b %d, %Y %I:%M %p'),
                         'uptime': f"{uptime // 3600:02d}:{(uptime % 3600) // 60:02d}:{uptime % 60:02d}",
-                        'interface': f"{sess.interface or 'Local sensor'} (remote sensor)",
+                        'interface': f"{sess.interface or 'Local sensor'} (Local Sensor)",
                         'sensor_online': True
                     })
                 elif status['pending_start']:
                     status['interface'] = 'Waiting for local sensor...'
+                else:
+                    standby = MonitoringSession.query.filter_by(status='STANDBY').order_by(MonitoringSession.id.desc()).first()
+                    if standby and standby.last_heartbeat and (now - standby.last_heartbeat).total_seconds() <= HEARTBEAT_TIMEOUT:
+                        status.update({
+                            'is_running': False,
+                            'status': 'Standby',
+                            'interface': f"{standby.interface or 'Local adapter'} (Sensor Connected - Ready to Sniff)",
+                            'sensor_online': True
+                        })
         except Exception as e:
             print(f"[DNSSniffer] Remote status error: {e}")
 

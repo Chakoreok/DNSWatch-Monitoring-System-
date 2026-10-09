@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from database import db
 from models import DNSLog
 from services.sniffer import sniffer_service
-from datetime import datetime, date
+from datetime import datetime
 
 dns_bp = Blueprint('dns', __name__)
 

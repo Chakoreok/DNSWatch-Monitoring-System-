@@ -18,7 +18,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 
 from database import db
-from models import ManualBlockRule, BlockRequest
+from models import ManualBlockRule, BlockRequest, MaliciousDomain
 
 blocking_bp = Blueprint('blocking', __name__)
 
@@ -42,7 +42,7 @@ def _refresh_engines():
 
 
 # ===================================================================
-# Manual Block Rules
+# Manual Block Rules (Blocked DNS)
 # ===================================================================
 
 @blocking_bp.route('/api/blocking/rules', methods=['GET'])
@@ -56,7 +56,7 @@ def get_block_rules():
 @blocking_bp.route('/api/blocking/rules', methods=['POST'])
 @login_required
 def create_block_rule():
-    """Create a new manual block rule (Admin only)."""
+    """Create a new manual block rule and move domain to Blocked DNS (Admin only)."""
     if not current_user.is_admin:
         return jsonify({'success': False, 'message': 'Administrator access required.'}), 403
 
@@ -76,31 +76,49 @@ def create_block_rule():
             existing.reason = reason or existing.reason
             existing.approved_by = current_user.username
             existing.updated_at = datetime.utcnow()
+            
+            # Remove from malicious domains feed if present so it moves cleanly
+            try:
+                mal_entry = MaliciousDomain.query.filter_by(domain=domain).first()
+                if mal_entry:
+                    db.session.delete(mal_entry)
+            except Exception:
+                pass
+                
             db.session.commit()
             _refresh_engines()
             return jsonify({
                 'success': True,
-                'message': f"Block rule for '{domain}' re-activated.",
+                'message': f"Domain '{domain}' has been re-blocked and moved to Blocked DNS.",
                 'rule': existing.to_dict()
             })
         return jsonify({'success': False,
-                        'message': f"An active block rule for '{domain}' already exists."}), 400
+                        'message': f"Domain '{domain}' is already blocked."}), 400
 
     rule = ManualBlockRule(
         domain=domain,
-        reason=reason,
+        reason=reason or 'Enforced from domain list',
         created_by=current_user.username,
         approved_by=current_user.username,
         source_request_id=source_request_id,
         is_active=True
     )
     db.session.add(rule)
+
+    # Remove from malicious domains feed table so it cleanly transitions to Blocked DNS
+    try:
+        mal_entry = MaliciousDomain.query.filter_by(domain=domain).first()
+        if mal_entry:
+            db.session.delete(mal_entry)
+    except Exception:
+        pass
+
     db.session.commit()
     _refresh_engines()
 
     return jsonify({
         'success': True,
-        'message': f"Domain '{domain}' has been blocked.",
+        'message': f"Domain '{domain}' has been blocked and moved to Blocked DNS.",
         'rule': rule.to_dict()
     })
 

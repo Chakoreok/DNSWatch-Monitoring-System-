@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from app import create_app
 from database import db
-from models import DNSLog, Device, SecurityAlert, WebsiteActivity, MonitoringSession
+from models import DNSLog
 from services.sniffer import sniffer_service
 
 def test_monitoring_synchronization_standalone():

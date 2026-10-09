@@ -8,8 +8,7 @@ import pymysql
 from flask import Flask
 from config import Config
 from database import db
-from models import Role, User, DetectionRule, MaliciousDomain, FrequencyRuleConfig, MonitoringSession, DNSLog, SecurityAlert, Device, WebsiteActivity, ManualBlockRule, BlockRequest
-from datetime import datetime, timedelta
+from models import Role, User, DetectionRule, MaliciousDomain, FrequencyRuleConfig
 
 def migrate_missing_columns():
     """Ensure existing tables have all required columns without dropping existing data."""

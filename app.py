@@ -79,11 +79,19 @@ def seed_defaults():
                 rule_name=name, rule_type=rtype, pattern=pattern, category=cat, severity=sev, action=action, description=desc, is_active=True
             ))
         db.session.commit()
+        
+    # 6. Threat Intelligence Feeds
+    from services.threat_feed_service import threat_feed_service
+    threat_feed_service.init_default_feeds()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     
+    # Apply ProxyFix for correct protocol/host resolution behind Render reverse proxy
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     # Initialize Database
     db.init_app(app)
     
@@ -96,6 +104,29 @@ def create_app(config_class=Config):
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))
+
+    # CORS & Preflight handling
+    @app.before_request
+    def handle_cors_preflight():
+        from flask import request, Response
+        if request.method == 'OPTIONS':
+            res = Response()
+            res.headers['Access-Control-Allow-Origin'] = '*'
+            res.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Sensor-Key,X-Requested-With'
+            res.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+            return res
+
+    @app.after_request
+    def add_cors_headers(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Sensor-Key,X-Requested-With'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+        # Never cache rendered pages, so the dashboard can't be shown from the
+        # browser cache after logout / reopening without signing in again.
+        if response.mimetype == 'text/html':
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+        return response
         
     # Register API & Views Blueprints
     from routes.views import views_bp
@@ -109,6 +140,7 @@ def create_app(config_class=Config):
     from routes.website_activity import website_activity_bp
     from routes.blocking import blocking_bp
     from routes.portal_sessions import portal_sessions_bp
+    from routes.sensor import sensor_bp
     
     app.register_blueprint(views_bp)
     app.register_blueprint(auth_bp)
@@ -121,6 +153,7 @@ def create_app(config_class=Config):
     app.register_blueprint(website_activity_bp)
     app.register_blueprint(blocking_bp)
     app.register_blueprint(portal_sessions_bp)
+    app.register_blueprint(sensor_bp)
     
     # Initialize sniffer, detection engine, and DNS sinkhole services with app context
     sniffer_service.init_app(app)

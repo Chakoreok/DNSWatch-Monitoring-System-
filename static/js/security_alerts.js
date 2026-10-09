@@ -95,7 +95,7 @@ async function fetchAlerts(page = 1, isBackground = false) {
         const clientIp = alt.client_ip || 'Unknown';
 
         return `
-          <tr>
+          <tr data-domain="${escapeHtml(domainText)}">
             <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap; font-family: var(--font-mono);">${timeStr}</td>
             <td style="font-weight: 600; color: var(--text-main);">${alt.alert_type}</td>
             <td>
@@ -112,9 +112,15 @@ async function fetchAlerts(page = 1, isBackground = false) {
             <td>${sevBadge}</td>
             <td>${statusBadge}</td>
             <td>
-              <button class="btn btn-outline btn-sm" onclick="openAlertModal('${alt.id || alt.alert_id}')" title="Incident Triage Details">
-                <i class="fa-solid fa-magnifying-glass"></i> Triage
-              </button>
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <button class="btn btn-outline btn-sm" onclick="openAlertModal('${alt.id || alt.alert_id}')" title="Incident Triage Details">
+                  <i class="fa-solid fa-magnifying-glass"></i> Triage
+                </button>
+                ${(typeof isAdmin === 'function' && isAdmin() && alt.domain) ? `
+                <button type="button" class="btn btn-outline btn-sm" style="color: var(--brand-danger); border-color: rgba(239,68,68,0.3); font-size: 11px; padding: 3px 8px;" title="Block domain" onclick="executeDomainBlock(this, '${escapeHtml(alt.domain)}', { reason: 'Blocked from Alert: ${escapeHtml(alt.alert_type || 'Suspicious Activity')}' })">
+                  <i class="fa-solid fa-ban"></i> Block
+                </button>` : ''}
+              </div>
             </td>
           </tr>
         `;
@@ -226,12 +232,27 @@ function closeAlertModal() {
   closeModal('modal-alert-details');
 }
 
-function openDirectBlockFromAlert() {
+async function openDirectBlockFromAlert(btn) {
   if (!currentSelectedAlert) return;
   const domain = currentSelectedAlert.domain;
   const clientIp = currentSelectedAlert.client_ip;
-  closeAlertModal();
-  if (typeof openDirectBlockModal === 'function') {
+  const reason = `Blocked from Alert #${currentSelectedAlert.id}: ${currentSelectedAlert.alert_type || 'Malicious DNS Activity'}${clientIp ? ` (Client: ${clientIp})` : ''}`;
+  const targetBtn = btn || document.getElementById('btn-modal-direct-block');
+
+  if (typeof executeDomainBlock === 'function') {
+    await executeDomainBlock(targetBtn, domain, {
+      reason: reason,
+      onSuccess: () => {
+        setTimeout(() => {
+          closeAlertModal();
+          if (typeof fetchAlerts === 'function') {
+            fetchAlerts(typeof currentAlertPage !== 'undefined' ? currentAlertPage : 1);
+          }
+        }, 500);
+      }
+    });
+  } else if (typeof openDirectBlockModal === 'function') {
+    closeAlertModal();
     openDirectBlockModal(domain, clientIp);
   }
 }

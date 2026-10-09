@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required, current_user
+from flask_login import current_user
 from database import db
 from models import SecurityAlert
 from services.sniffer import sniffer_service

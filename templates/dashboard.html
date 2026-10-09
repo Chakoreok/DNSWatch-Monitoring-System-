@@ -7,7 +7,7 @@
 {% block content %}
 <!-- Top Metrics Row -->
 <div class="grid-3">
-  <div class="stat-card">
+  <div class="stat-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('views.dns_logs_page') }}'" title="View all DNS queries in Logs">
     <div class="stat-icon blue">
       <i class="fa-solid fa-server"></i>
     </div>
@@ -20,7 +20,7 @@
     </div>
   </div>
 
-  <div class="stat-card">
+  <div class="stat-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('views.dns_logs_page') }}?status=SUSPICIOUS'" title="View all 164 suspicious queries in DNS Logs">
     <div class="stat-icon amber">
       <i class="fa-solid fa-triangle-exclamation"></i>
     </div>
@@ -28,12 +28,12 @@
       <div class="stat-label">Suspicious Requests</div>
       <div class="stat-value" id="dash-suspicious-queries">0</div>
       <div class="stat-subtext warn">
-        <i class="fa-solid fa-triangle-exclamation"></i> <span>Requires SOC triage</span>
+        <i class="fa-solid fa-triangle-exclamation"></i> <span>Requires SOC triage &rarr;</span>
       </div>
     </div>
   </div>
 
-  <div class="stat-card">
+  <div class="stat-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('views.dns_logs_page') }}?status=BLOCKED'" title="View blocked queries in DNS Logs">
     <div class="stat-icon red">
       <i class="fa-solid fa-ban"></i>
     </div>

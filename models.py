@@ -198,6 +198,7 @@ class MaliciousDomain(BaseModel):
     category = db.Column(db.String(100), nullable=False, default='Malware / Phishing')
     severity = db.Column(db.String(20), nullable=False, default='HIGH')
     description = db.Column(db.Text, nullable=True)
+    feed_source = db.Column(db.String(100), nullable=True, default='Manual')
     status = db.Column(db.String(20), nullable=False, default='Active', index=True)  # Active, Inactive
     added_by = db.Column(db.String(100), nullable=False, default='admin')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -210,9 +211,68 @@ class MaliciousDomain(BaseModel):
             'category': self.category,
             'severity': self.severity,
             'description': self.description,
+            'feed_source': self.feed_source or 'Manual',
             'status': self.status,
             'added_by': self.added_by,
             'added_at': self.created_at.strftime('%b %d, %Y %I:%M %p') if self.created_at else '',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else ''
+        }
+
+
+class ThreatFeed(BaseModel):
+    __tablename__ = 'threat_feeds'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    source_url = db.Column(db.String(500), nullable=False)
+    feed_type = db.Column(db.String(50), nullable=False, default='URLHAUS')  # URLHAUS, OPENPHISH, THREATFOX, OSINT_SEED, CUSTOM
+    category = db.Column(db.String(100), nullable=False, default='Malware / Phishing')
+    severity = db.Column(db.String(20), nullable=False, default='HIGH')
+    description = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    last_synced = db.Column(db.DateTime, nullable=True)
+    domain_count = db.Column(db.Integer, nullable=False, default=0)
+    sync_status = db.Column(db.String(50), nullable=False, default='IDLE')  # IDLE, SYNCING, SUCCESS, ERROR
+    sync_message = db.Column(db.String(255), nullable=True)
+    auto_sync = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'source_url': self.source_url,
+            'feed_type': self.feed_type,
+            'category': self.category,
+            'severity': self.severity,
+            'description': self.description or '',
+            'is_active': bool(self.is_active),
+            'last_synced': self.last_synced.strftime('%b %d, %Y %I:%M %p') if self.last_synced else 'Never',
+            'domain_count': self.domain_count,
+            'sync_status': self.sync_status,
+            'sync_message': self.sync_message or '',
+            'auto_sync': bool(self.auto_sync)
+        }
+
+
+class DomainWhitelist(BaseModel):
+    __tablename__ = 'domain_whitelist'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    domain = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    reason = db.Column(db.String(255), nullable=True, default='Trusted service / CDN')
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    added_by = db.Column(db.String(100), nullable=False, default='system')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'domain': self.domain,
+            'reason': self.reason or '',
+            'is_active': bool(self.is_active),
+            'added_by': self.added_by,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else ''
         }
 

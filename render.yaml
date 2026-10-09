@@ -8,6 +8,14 @@ services:
     envVars:
       - key: SECRET_KEY
         generateValue: true
+      - key: SENSOR_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        sync: false
       - key: DB_HOST
         sync: false
       - key: DB_USER
@@ -18,5 +26,3 @@ services:
         sync: false
       - key: DB_PORT
         value: 3306
-      - key: PYTHON_VERSION
-        value: 3.11.0

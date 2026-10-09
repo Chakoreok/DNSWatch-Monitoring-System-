@@ -49,6 +49,10 @@
         </a>
 
         <div class="nav-section-title">Network &amp; Threats</div>
+        <a href="{{ url_for('views.blocked_dns_page') }}" class="nav-link {% if active_page == 'blocked-dns' %}active{% endif %}">
+          <i class="fa-solid fa-ban"></i>
+          <span>Blocked DNS</span>
+        </a>
         <a href="{{ url_for('views.devices_page') }}" class="nav-link {% if active_page == 'devices' %}active{% endif %}">
           <i class="fa-solid fa-laptop"></i>
           <span>Devices</span>
@@ -333,6 +337,38 @@
         <button class="btn btn-danger" id="dbModal-submit-btn" onclick="submitDirectBlock()">
           <i class="fa-solid fa-ban"></i> Block Domain Now
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       Global: Cyber HUD Domain Block Overlay Animation
+       ======================================================== -->
+  <div id="domain-block-overlay" onclick="dismissDomainBlockAnimation()">
+    <div class="block-hud-card" onclick="event.stopPropagation()">
+      <div class="block-hud-shield-wrap">
+        <div class="block-reticle-ring"></div>
+        <div class="block-shockwave"></div>
+        <div class="block-shield-icon">
+          <i class="fa-solid fa-shield-virus"></i>
+        </div>
+      </div>
+      <div class="block-hud-tag">
+        <i class="fa-solid fa-lock"></i> TIER-0 DNS SINKHOLE ENFORCEMENT
+      </div>
+      <div class="block-hud-domain-box">
+        <div class="block-hud-domain" id="hud-blocked-domain">domain.com</div>
+        <div class="block-laser-strike"></div>
+      </div>
+      <div>
+        <div class="block-hud-stamp">
+          <i class="fa-solid fa-ban"></i> SINKHOLED • NXDOMAIN
+        </div>
+      </div>
+      <div class="block-hud-meta">
+        <span><i class="fa-solid fa-satellite-dish"></i> Status: <code>NXDOMAIN</code></span>
+        <span><i class="fa-solid fa-layer-group"></i> Destination: <code>Blocked DNS</code></span>
+        <span id="hud-blocked-reason-wrap"><i class="fa-solid fa-circle-info"></i> Reason: <code id="hud-blocked-reason">Enforced</code></span>
       </div>
     </div>
   </div>

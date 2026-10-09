@@ -19,7 +19,6 @@ Endpoints:
 """
 
 import secrets
-import uuid
 from flask import Blueprint, request, jsonify, session as flask_session
 from flask_login import login_required, current_user
 from database import db

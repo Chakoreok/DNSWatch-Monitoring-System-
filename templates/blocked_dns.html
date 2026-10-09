@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}DNSWatch - Blocked DNS{% endblock %}
+{% block header_title %}Blocked DNS{% endblock %}
+{% block header_subtitle %}Administrator-enforced domain blocking. Returns NXDOMAIN when sinkhole is active.{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
+    <div class="card-header-left">
+      <h3><i class="fa-solid fa-ban" style="color: var(--brand-danger);"></i> Blocked DNS</h3>
+      <p>Domains actively sinkholed and blocked by DNS rules. Only displays domains that have already been blocked.</p>
+    </div>
+    <div class="toolbar-right" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <div class="search-box" style="min-width: 220px;">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="blocked-dns-search" placeholder="Search blocked domain or reason..." oninput="debounceBlockedSearch()">
+      </div>
+      <button class="btn btn-outline" onclick="loadBlockRules()" title="Refresh Blocked DNS List">
+        <i class="fa-solid fa-rotate-right"></i> Refresh
+      </button>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="custom-table" id="table-block-rules">
+      <thead>
+        <tr>
+          <th>Domain (+ subdomains)</th>
+          <th>Reason</th>
+          <th>Created By</th>
+          <th>Approved By</th>
+          <th>Status</th>
+          <th>Created At</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="block-rules-tbody">
+        <tr>
+          <td colspan="7" style="text-align:center;color:var(--text-muted);padding:35px;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 20px; color: var(--brand-primary); margin-bottom: 8px;"></i>
+            <div>Loading blocked domains...</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/blocked_dns.js') }}"></script>
+{% endblock %}

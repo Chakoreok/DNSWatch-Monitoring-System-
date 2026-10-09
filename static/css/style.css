@@ -1874,3 +1874,395 @@ textarea.form-control {
     padding: 20px 16px;
   }
 }
+
+/* ==========================================================================
+   DOMAIN BLOCK ENFORCEMENT ANIMATION & HUD SYSTEM
+   High-Tech Cyber SOC Lockdown Overlay & Table Row Feedback
+   ========================================================================== */
+
+#domain-block-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 11, 20, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: inset 0 0 160px rgba(239, 68, 68, 0.4), inset 0 0 60px rgba(239, 68, 68, 0.25);
+  background-image: 
+    radial-gradient(rgba(239, 68, 68, 0.15) 1px, transparent 1px),
+    radial-gradient(ellipse at center, rgba(239, 68, 68, 0.12) 0%, transparent 70%);
+  background-size: 28px 28px, 100% 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#domain-block-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.block-hud-card {
+  position: relative;
+  max-width: 520px;
+  width: 92%;
+  background: linear-gradient(180deg, rgba(26, 13, 17, 0.96) 0%, rgba(15, 23, 42, 0.96) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  border-radius: 20px;
+  padding: 38px 30px;
+  text-align: center;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.85), 0 0 50px rgba(239, 68, 68, 0.35);
+  transform: scale(0.7) translateY(24px);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+  overflow: hidden;
+}
+
+#domain-block-overlay.active .block-hud-card {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* Corner Cyber HUD Accents */
+.block-hud-card::before,
+.block-hud-card::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+.block-hud-card::before {
+  top: 10px;
+  left: 10px;
+  border-top: 2px solid #ef4444;
+  border-left: 2px solid #ef4444;
+}
+
+.block-hud-card::after {
+  bottom: 10px;
+  right: 10px;
+  border-bottom: 2px solid #ef4444;
+  border-right: 2px solid #ef4444;
+}
+
+/* Central Shield Container & Spinning Reticle */
+.block-hud-shield-wrap {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.block-reticle-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px dashed rgba(239, 68, 68, 0.5);
+  animation: rotateReticle 10s linear infinite;
+}
+
+@keyframes rotateReticle {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.block-shockwave {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid rgba(239, 68, 68, 0.8);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  pointer-events: none;
+  animation: shockwavePulse 1.4s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+}
+
+@keyframes shockwavePulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.block-shield-icon {
+  position: relative;
+  z-index: 2;
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 36px;
+  box-shadow: 0 0 35px rgba(239, 68, 68, 0.75), inset 0 2px 4px rgba(255, 255, 255, 0.3);
+  animation: shieldSlam 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes shieldSlam {
+  0% {
+    transform: scale(0.2) rotate(-15deg);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.15) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* Badge & Tag */
+.block-hud-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 14px;
+}
+
+/* Monospace Target Domain */
+.block-hud-domain-box {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin-bottom: 16px;
+}
+
+.block-hud-domain {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 800;
+  color: #fecaca;
+  letter-spacing: 0.5px;
+  word-break: break-all;
+  text-shadow: 0 0 18px rgba(239, 68, 68, 0.65);
+}
+
+.block-laser-strike {
+  position: absolute;
+  top: 50%;
+  left: -8px;
+  right: -8px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #ef4444 20%, #ffffff 50%, #ef4444 80%, transparent);
+  box-shadow: 0 0 12px #ef4444, 0 0 4px #ffffff;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: left;
+  animation: laserStrike 0.4s 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes laserStrike {
+  0% { transform: translateY(-50%) scaleX(0); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateY(-50%) scaleX(1); opacity: 1; }
+}
+
+/* Enforced Status Stamp */
+.block-hud-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.3) 100%);
+  border: 1.5px solid #ef4444;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 22px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.4);
+  transform: scale(1.3) rotate(-3deg);
+  opacity: 0;
+  animation: stampSlam 0.35s 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes stampSlam {
+  0% {
+    transform: scale(1.8) rotate(-8deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.95) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-2deg);
+    opacity: 1;
+  }
+}
+
+/* Routing Meta Info */
+.block-hud-meta {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(239, 68, 68, 0.2);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.block-hud-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.block-hud-meta code {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+/* Table Row Flash Animation when domain is blocked */
+.row-blocked-anim {
+  animation: rowBlockedPulse 1.8s ease-out forwards !important;
+}
+
+@keyframes rowBlockedPulse {
+  0% {
+    background-color: rgba(239, 68, 68, 0.45) !important;
+    border-left: 4px solid #ef4444 !important;
+  }
+  50% {
+    background-color: rgba(239, 68, 68, 0.2) !important;
+  }
+  100% {
+    background-color: rgba(239, 68, 68, 0.08) !important;
+    border-left: 4px solid #ef4444 !important;
+  }
+}
+
+.row-blocked-anim td:first-child span,
+.row-blocked-anim .domain-text {
+  text-decoration: line-through;
+  color: #f87171 !important;
+}
+
+/* ==========================================================================
+   BUTTON BLOCKING STATES & ROW DISAPPEAR ANIMATION
+   ========================================================================== */
+
+.btn-blocking {
+  background-color: rgba(239, 68, 68, 0.22) !important;
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-blocking::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: btnShimmer 1.1s infinite;
+}
+
+@keyframes btnShimmer {
+  to { left: 100%; }
+}
+
+.btn-blocked-success {
+  background-color: var(--brand-success) !important;
+  border-color: var(--brand-success) !important;
+  color: #ffffff !important;
+  cursor: default !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.5) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  animation: btnSuccessPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes btnSuccessPop {
+  0% { transform: scale(0.92); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Row Disappear Animation when domain is removed from list */
+@keyframes rowDisappearAnim {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    background-color: rgba(239, 68, 68, 0.3);
+  }
+  30% {
+    opacity: 0.85;
+    transform: translateX(-15px);
+    background-color: rgba(239, 68, 68, 0.45);
+  }
+  70% {
+    opacity: 0.3;
+    transform: translateX(-50px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-80px);
+    max-height: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    line-height: 0 !important;
+    border: none !important;
+  }
+}
+
+.row-disappear {
+  animation: rowDisappearAnim 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+  pointer-events: none !important;
+}
+
+/* Sidebar Nav Link Pulse when domain is moved to Blocked DNS */
+@keyframes navLinkPulseGlow {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); background: rgba(239, 68, 68, 0.25); }
+  50% { box-shadow: 0 0 20px 4px rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.35); }
+  100% { box-shadow: 0 0 0 0 transparent; background: transparent; }
+}
+
+.nav-link-pulse {
+  animation: navLinkPulseGlow 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  color: #f87171 !important;
+}
+
+

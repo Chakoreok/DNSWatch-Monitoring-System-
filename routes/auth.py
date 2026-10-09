@@ -39,8 +39,9 @@ def api_login():
             'message': 'Account is inactive. Contact administrator.'
         }), 403
         
-    # Mark session permanent so refreshing browser keeps session active
-    session.permanent = True
+    # Browser-session cookie only: refreshing keeps you signed in, but reopening
+    # the system after closing the browser requires signing in again.
+    session.permanent = False
     login_user(user, remember=False)
     user.last_login = datetime.utcnow()
     db.session.commit()
@@ -57,7 +58,7 @@ def api_login():
 def logout():
     """
     Destroys the authenticated session and logs the user out.
-    Redirects to the Landing Page.
+    Redirects to the Sign In page.
     """
     logout_user()
     session.clear()
@@ -66,10 +67,10 @@ def logout():
         resp = jsonify({
             'success': True,
             'message': 'Logged out successfully.',
-            'redirect': url_for('views.landing_page')
+            'redirect': url_for('views.login_page')
         })
     else:
-        resp = redirect(url_for('views.landing_page'))
+        resp = redirect(url_for('views.login_page'))
         
     resp.delete_cookie('session')
     resp.delete_cookie('remember_token')
@@ -165,7 +166,7 @@ def api_register():
     db.session.commit()
     
     # Authenticate the newly registered user
-    session.permanent = True
+    session.permanent = False
     login_user(user, remember=False)
     user.last_login = datetime.utcnow()
     db.session.commit()

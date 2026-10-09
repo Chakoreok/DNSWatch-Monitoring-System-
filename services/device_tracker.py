@@ -1,6 +1,6 @@
 import socket
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 from scapy.all import conf
 from database import db
 from models import Device
@@ -56,7 +56,7 @@ class DeviceTracker:
         if not client_ip or client_ip == "Unknown":
             return
             
-        now = query_time or datetime.now()
+        now = query_time or datetime.utcnow()
         local_ips = self.get_local_system_ips()
         
         # Check if this query is from the local monitoring workstation

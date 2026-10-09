@@ -19,7 +19,7 @@ def get_devices():
         local_ips = device_tracker.get_local_system_ips()
         primary_local_ip = device_tracker.get_primary_local_ip()
         
-        now = datetime.now()
+        now = datetime.utcnow()
         active_window = timedelta(minutes=15)
         
         # 1. Query unique client IPs from DNSLog
@@ -35,7 +35,6 @@ def get_devices():
         # Group entries: local machine IPs are aggregated under primary local IP
         local_total_queries = 0
         local_latest_seen = None
-        
         lan_clients = {}  # ip -> {'count': ..., 'last_seen': ...}
         
         for ip, count, lseen in unique_ips:
@@ -103,7 +102,51 @@ def get_devices():
                 dev.dns_queries = data['count']
                 if data['last_seen']:
                     dev.last_seen = data['last_seen']
-                dev.status = stat
+                # Don't downgrade status if it's already Active from portal session
+                if dev.status != "Active":
+                    dev.status = stat
+
+        # 4. Sync WebPortalSessions into Device table
+        from models import WebPortalSession
+        try:
+            portal_sessions = WebPortalSession.query.filter(
+                WebPortalSession.ip_address.isnot(None),
+                WebPortalSession.ip_address != ""
+            ).order_by(WebPortalSession.last_heartbeat.desc()).all()
+
+            seen_p_ips = set()
+            for ps in portal_sessions:
+                if ps.ip_address in seen_p_ips:
+                    continue
+                seen_p_ips.add(ps.ip_address)
+                
+                is_p_active = bool(ps.is_active and ps.last_heartbeat and (now - ps.last_heartbeat) <= timedelta(minutes=5))
+                p_dev = Device.query.filter_by(client_ip=ps.ip_address).first()
+                if not p_dev:
+                    os_label = "Browser / Web Portal"
+                    ua = (ps.user_agent or '').lower()
+                    if 'windows' in ua: os_label = 'Windows'
+                    elif 'android' in ua: os_label = 'Android'
+                    elif 'iphone' in ua or 'ipad' in ua or 'ios' in ua: os_label = 'iOS'
+                    elif 'mac' in ua: os_label = 'macOS'
+                    elif 'linux' in ua: os_label = 'Linux'
+                    
+                    p_dev = Device(
+                        client_ip=ps.ip_address,
+                        mac_address="-",
+                        device_name=f"Portal-{ps.username or 'Visitor'} ({os_label})",
+                        device_type=f"Web Portal Visitor ({os_label})",
+                        dns_queries=0,
+                        last_seen=ps.last_heartbeat or now,
+                        status="Active" if is_p_active else "Inactive"
+                    )
+                    db.session.add(p_dev)
+                elif is_p_active:
+                    p_dev.status = "Active"
+                    if ps.last_heartbeat:
+                        p_dev.last_seen = ps.last_heartbeat
+        except Exception as p_err:
+            print(f"[Devices] Portal sync note: {p_err}")
                 
         db.session.commit()
         

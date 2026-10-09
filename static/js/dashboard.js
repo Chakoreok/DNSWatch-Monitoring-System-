@@ -19,6 +19,115 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshDashboard();
   });
 
+  // Listen to real-time SSE stream events for instantaneous UI updates
+  document.addEventListener('liveDnsLog', (e) => {
+    const log = e.detail;
+    if (!log) return;
+    
+    const tbody = document.getElementById('dash-dns-tbody');
+    if (tbody) {
+      const timeStr = log.time_only || (log.timestamp ? log.timestamp.split(' ')[1] : '-');
+      const domain = log.domain || log.query_domain;
+      const iconHtml = getDomainIcon(domain);
+      const badgeHtml = getStatusBadge(log.status);
+      const qtypeBadge = typeof getQueryTypeBadge === 'function' ? getQueryTypeBadge(log.query_type) : `<span class="qtype-badge qtype-A">${log.query_type || 'A'}</span>`;
+      const respIp = log.response_ip && log.response_ip !== '-' ? log.response_ip : '-';
+      const clientIp = log.client_ip || 'Unknown';
+
+      const rowHtml = `
+        <tr>
+          <td style="color: var(--text-muted); font-size: 11.5px; white-space: nowrap; font-family: var(--font-mono);">${timeStr}</td>
+          <td>
+            <span class="ip-chip" onclick="copyToClipboard('${clientIp}', 'Client IP')" title="Click to copy IP">
+              ${clientIp} <i class="fa-regular fa-copy"></i>
+            </span>
+          </td>
+          <td>
+            <div class="domain-cell">
+              <span class="domain-icon">${iconHtml}</span>
+              <span style="font-weight: 600; cursor: pointer;" onclick="copyToClipboard('${domain}', 'Domain')" title="Click to copy">${domain}</span>
+            </div>
+          </td>
+          <td>${qtypeBadge}</td>
+          <td>
+            ${respIp !== '-' ? `
+              <span class="ip-chip" onclick="copyToClipboard('${respIp}', 'Response IP')" title="Click to copy IP">
+                ${respIp} <i class="fa-regular fa-copy"></i>
+              </span>
+            ` : '<span style="color: var(--text-light); font-family: var(--font-mono);">-</span>'}
+          </td>
+          <td>${badgeHtml}</td>
+        </tr>
+      `;
+
+      if (tbody.children.length === 1 && tbody.children[0].textContent.includes('No DNS queries')) {
+        tbody.innerHTML = '';
+      }
+      tbody.insertAdjacentHTML('afterbegin', rowHtml);
+      while (tbody.children.length > 10) {
+        tbody.removeChild(tbody.lastChild);
+      }
+      const counterEl = document.getElementById('dash-dns-counter');
+      if (counterEl) {
+        counterEl.textContent = `Showing 1 to ${tbody.children.length} live entries`;
+      }
+    }
+
+    const totEl = document.getElementById('dash-total-queries');
+    if (totEl) {
+      let currentVal = parseInt(totEl.textContent.replace(/,/g, '')) || 0;
+      totEl.textContent = (currentVal + 1).toLocaleString();
+    }
+    if (log.status === 'SUSPICIOUS') {
+      const susEl = document.getElementById('dash-suspicious-queries');
+      if (susEl) {
+        let currentVal = parseInt(susEl.textContent.replace(/,/g, '')) || 0;
+        susEl.textContent = (currentVal + 1).toLocaleString();
+      }
+    } else if (log.status === 'BLOCKED') {
+      const blkEl = document.getElementById('dash-blocked-queries');
+      if (blkEl) {
+        let currentVal = parseInt(blkEl.textContent.replace(/,/g, '')) || 0;
+        blkEl.textContent = (currentVal + 1).toLocaleString();
+      }
+    }
+  });
+
+  document.addEventListener('liveAlert', (e) => {
+    const alt = e.detail;
+    if (!alt) return;
+    const container = document.getElementById('dash-alerts-container');
+    if (container) {
+      const sev = (alt.severity || 'HIGH').toUpperCase();
+      let sevItemClass = sev === 'MEDIUM' ? 'sev-medium' : (sev === 'LOW' ? 'sev-low' : '');
+      let sevBadge = sev === 'MEDIUM' ?
+        '<span class="badge-medium"><i class="fa-solid fa-triangle-exclamation"></i> MEDIUM</span>' :
+        (sev === 'LOW' ? '<span class="badge-low"><i class="fa-solid fa-circle-info"></i> LOW</span>' :
+        '<span class="badge-high"><i class="fa-solid fa-triangle-exclamation"></i> HIGH</span>');
+      const timeStr = alt.time_only || (alt.timestamp ? alt.timestamp.split(' ')[1] : '-');
+
+      const itemHtml = `
+        <div class="alert-widget-item ${sevItemClass}">
+          <div class="alert-widget-left">
+            <div class="alert-widget-title">${alt.alert_type}</div>
+            <div class="alert-widget-domain">${alt.domain || alt.client_ip}</div>
+          </div>
+          <div class="alert-widget-right">
+            ${sevBadge}
+            <span class="alert-widget-time">${timeStr}</span>
+          </div>
+        </div>
+      `;
+      if (container.children.length === 1 && container.children[0].textContent.includes('No security threats')) {
+        container.innerHTML = '';
+      }
+      container.insertAdjacentHTML('afterbegin', itemHtml);
+      while (container.children.length > 4) {
+        container.removeChild(container.lastChild);
+      }
+    }
+  });
+
   // Portal viewers: load immediately, then every 20s (admin/analyst only, paused when in background)
   if (typeof IS_ADMIN !== 'undefined' && (IS_ADMIN || IS_ANALYST)) {
     loadPortalViewers();

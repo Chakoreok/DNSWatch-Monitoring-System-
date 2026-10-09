@@ -20,24 +20,43 @@ class Config:
     DB_PORT     = os.getenv("MYSQLPORT")     or os.getenv("DB_PORT",     "3306")
     DB_NAME     = os.getenv("MYSQLDATABASE") or os.getenv("DB_NAME",     "dnswatch_db")
 
-    # Railway also provides a full DATABASE_URL — use it directly if present
+    # Database resolution (MySQL / PostgreSQL / SQLite fallback)
     _DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("MYSQL_URL") or os.getenv("MYSQL_PRIVATE_URL")
     if _DATABASE_URL:
-        # SQLAlchemy requires mysql+pymysql:// scheme
-        SQLALCHEMY_DATABASE_URI = _DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
+        if _DATABASE_URL.startswith("postgres://"):
+            SQLALCHEMY_DATABASE_URI = _DATABASE_URL.replace("postgres://", "postgresql://", 1)
+        elif _DATABASE_URL.startswith("mysql://"):
+            SQLALCHEMY_DATABASE_URI = _DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
+        else:
+            SQLALCHEMY_DATABASE_URI = _DATABASE_URL
+    elif IS_PRODUCTION and DB_HOST in ("127.0.0.1", "localhost") and not os.getenv("DB_PASSWORD"):
+        # On Render / production without an external MySQL database configured, use SQLite fallback
+        # to ensure the web dashboard and DB storage boot up reliably without crashing.
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(base_dir, 'dnswatch.db')}"
+        print("[DNSWatch Config] Production platform detected without external MySQL: using SQLite fallback.")
     else:
         SQLALCHEMY_DATABASE_URI = (
             f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
         )
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_recycle": 280,
-        "pool_pre_ping": True,
-        "pool_size": 3 if IS_PRODUCTION else 5,
-        "max_overflow": 2 if IS_PRODUCTION else 5,
-        "pool_timeout": 30,
-    }
+    if "sqlite" in SQLALCHEMY_DATABASE_URI:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            "pool_pre_ping": True,
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            "pool_recycle": 280,
+            "pool_pre_ping": True,
+            "pool_size": 3 if IS_PRODUCTION else 5,
+            "max_overflow": 2 if IS_PRODUCTION else 5,
+            "pool_timeout": 30,
+        }
+
+    # Remote Sensor Agent Integration
+    SENSOR_KEY = os.getenv("SENSOR_KEY", "dnswatch-secret-sensor-key-2026")
+    RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("RENDER_URL") or os.getenv("BACKEND_URL", "")
 
     # Sniffer Settings
     DEFAULT_CAPTURE_INTERFACE = os.getenv("DEFAULT_CAPTURE_INTERFACE", "")

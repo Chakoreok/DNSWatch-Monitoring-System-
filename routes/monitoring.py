@@ -1,10 +1,37 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response, stream_with_context
 from flask_login import login_required, current_user
 from database import db
 from models import DNSLog, SecurityAlert, Device, WebsiteActivity, MonitoringSession
 from services.sniffer import sniffer_service
+from services.broadcaster import broadcaster
 
 monitoring_bp = Blueprint('monitoring', __name__)
+
+@monitoring_bp.route('/api/stream/events', methods=['GET'])
+def stream_events():
+    """Real-time Server-Sent Events (SSE) stream for live dashboard telemetry."""
+    def generate():
+        client_q = broadcaster.register()
+        try:
+            # Yield initial connect event
+            import json
+            status_init = sniffer_service.get_status()
+            yield f"event: status\ndata: {json.dumps(status_init)}\n\n"
+            for chunk in broadcaster.event_generator(client_q):
+                yield chunk
+        finally:
+            broadcaster.unregister(client_q)
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache, no-transform',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',
+            'Access-Control-Allow-Origin': '*'
+        }
+    )
 
 @monitoring_bp.route('/api/monitoring/status', methods=['GET'])
 def get_monitoring_status():

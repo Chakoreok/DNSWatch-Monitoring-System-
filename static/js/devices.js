@@ -14,6 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('monitoringStateChanged', () => {
     fetchDevices();
   });
+
+  // Listen to live DNS stream to update devices table in real-time
+  document.addEventListener('liveDnsLog', () => {
+    if (!devicesSearchTimeout) {
+      devicesSearchTimeout = setTimeout(() => {
+        devicesSearchTimeout = null;
+        fetchDevices();
+      }, 4000);
+    }
+  });
 });
 
 function debounceDevicesSearch() {
@@ -22,9 +32,12 @@ function debounceDevicesSearch() {
 }
 
 async function fetchDevices() {
-  const search = document.getElementById('devices-search-input').value.trim();
-  const status = document.getElementById('devices-status-filter').value;
-  const typeFilter = (document.getElementById('devices-type-filter') || {}).value || '';
+  const searchInput = document.getElementById('devices-search-input');
+  const search = searchInput ? searchInput.value.trim() : '';
+  const statusFilter = document.getElementById('devices-status-filter');
+  const status = statusFilter ? statusFilter.value : 'ALL';
+  const typeFilterEl = document.getElementById('devices-type-filter');
+  const typeFilter = typeFilterEl ? typeFilterEl.value : '';
 
   const url = new URL('/api/devices', window.location.origin);
   if (search) url.searchParams.set('search', search);
@@ -34,24 +47,32 @@ async function fetchDevices() {
     const res = await fetch(url);
     const data = await res.json();
     const tbody = document.getElementById('devices-tbody');
+    if (!tbody) return;
 
     if (data.success) {
-      document.getElementById('dev-cnt-total').textContent = data.total_devices || 0;
-      document.getElementById('dev-cnt-active').textContent = data.active_devices || 0;
-      document.getElementById('dev-cnt-inactive').textContent = data.inactive_devices || 0;
-      document.getElementById('dev-cnt-queries').textContent = Number(data.total_queries || 0).toLocaleString();
+      const totalEl = document.getElementById('dev-cnt-total');
+      if (totalEl) totalEl.textContent = data.total_devices || 0;
+
+      const activeEl = document.getElementById('dev-cnt-active');
+      if (activeEl) activeEl.textContent = data.active_devices || 0;
+
+      const inactiveEl = document.getElementById('dev-cnt-inactive');
+      if (inactiveEl) inactiveEl.textContent = data.inactive_devices || 0;
+
+      const queriesEl = document.getElementById('dev-cnt-queries');
+      if (queriesEl) queriesEl.textContent = Number(data.total_queries || 0).toLocaleString();
 
       // Count portal visitors for badge
-      const portalCount = (data.devices || []).filter(d => (d.device_type || '').includes('Portal')).length;
+      const portalCount = (data.devices || []).filter(d => (d.device_type || '').includes('Portal') || (d.device_name || '').includes('Portal')).length;
       const portalBadge = document.getElementById('dev-cnt-portal');
       if (portalBadge) portalBadge.textContent = portalCount;
 
       // Apply client-side type filter
       let devices = data.devices || [];
       if (typeFilter === 'portal') {
-        devices = devices.filter(d => (d.device_type || '').includes('Portal'));
+        devices = devices.filter(d => (d.device_type || '').includes('Portal') || (d.device_name || '').includes('Portal'));
       } else if (typeFilter === 'dns') {
-        devices = devices.filter(d => !(d.device_type || '').includes('Portal'));
+        devices = devices.filter(d => !(d.device_type || '').includes('Portal') && !(d.device_name || '').includes('Portal'));
       }
 
       if (devices.length > 0) {

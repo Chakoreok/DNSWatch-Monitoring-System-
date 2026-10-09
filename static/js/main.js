@@ -5,6 +5,8 @@
 let globalMonitoringActive = false;
 let previousMonitoringRunning = false;
 
+let globalEventSource = null;
+
 // 1. Initialize Global App State
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
@@ -15,13 +17,56 @@ document.addEventListener('DOMContentLoaded', () => {
     previousMonitoringRunning = globalMonitoringActive;
   }
   pollGlobalStatus();
-  // Poll monitoring status every 5 seconds (paused when tab is hidden in background)
+  initGlobalStream();
+
+  // Poll monitoring status every 6 seconds as a backup sync
   setInterval(() => {
     if (!document.hidden) {
       pollGlobalStatus();
     }
-  }, 5000);
+  }, 6000);
 });
+
+// --------------------------------------------------------------------------
+// Real-Time Stream Manager (SSE)
+// --------------------------------------------------------------------------
+function initGlobalStream() {
+  if (typeof EventSource === 'undefined') return;
+  if (globalEventSource) {
+    try { globalEventSource.close(); } catch (e) {}
+  }
+
+  try {
+    globalEventSource = new EventSource('/api/stream/events');
+
+    globalEventSource.addEventListener('status', (e) => {
+      try {
+        const mon = JSON.parse(e.data);
+        if (mon) updateMonitoringUI(mon);
+      } catch (err) {}
+    });
+
+    globalEventSource.addEventListener('dns_log', (e) => {
+      try {
+        const log = JSON.parse(e.data);
+        document.dispatchEvent(new CustomEvent('liveDnsLog', { detail: log }));
+      } catch (err) {}
+    });
+
+    globalEventSource.addEventListener('alert', (e) => {
+      try {
+        const alert = JSON.parse(e.data);
+        document.dispatchEvent(new CustomEvent('liveAlert', { detail: alert }));
+      } catch (err) {}
+    });
+
+    globalEventSource.onerror = () => {
+      // Automatic browser reconnect; pollGlobalStatus acts as seamless fallback
+    };
+  } catch (err) {
+    console.debug('SSE initialization fallback:', err);
+  }
+}
 
 // --------------------------------------------------------------------------
 // 2. Dark / Light Theme Manager

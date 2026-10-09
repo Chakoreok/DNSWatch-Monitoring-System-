@@ -7,6 +7,17 @@ const perPage = 10;
 let searchTimeout = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const statusParam = urlParams.get('status');
+  const searchParam = urlParams.get('search');
+  if (statusParam) {
+    const statusSelect = document.getElementById('logs-status-filter');
+    if (statusSelect) statusSelect.value = statusParam.toUpperCase();
+  }
+  if (searchParam) {
+    const searchInput = document.getElementById('logs-search-input');
+    if (searchInput) searchInput.value = searchParam;
+  }
   fetchLogs(1);
   
   // Auto-refresh when on page 1 and no search query

@@ -65,10 +65,14 @@ document.addEventListener('click', (e) => {
 // --------------------------------------------------------------------------
 
 function handleDirectBlockClick(btn) {
-  if (!btn) return;
+  if (!btn || btn.disabled) return;
   const domain = btn.getAttribute('data-domain') || '';
   const ip = btn.getAttribute('data-ip') || '';
-  openDirectBlockModal(domain, ip);
+  const reason = btn.getAttribute('data-reason') || (ip ? `Blocked for client IP ${ip}` : 'Manual block from table');
+  if (!domain) return;
+
+  // Execute directly on the clicked button with loading animation & row removal
+  executeDomainBlock(btn, domain, { reason });
 }
 
 function handleRequestBlockClick(btn) {
@@ -254,60 +258,15 @@ async function submitDirectBlock() {
     return;
   }
 
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Blocking...';
-  }
-
-  try {
-    const res = await fetch('/api/blocking/rules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domain, reason })
-    });
-    const data = await res.json();
-
-    if (data.success) {
-      if (feedback) {
-        feedback.style.display = 'block';
-        feedback.style.color = 'var(--success)';
-        feedback.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${escapeHtml(data.message || 'Domain blocked successfully.')}`;
-      }
-      if (typeof showToast === 'function') {
-        showToast(data.message || 'Domain blocked successfully.', 'success');
-      }
+  await executeDomainBlock(btn, domain, {
+    reason: reason,
+    onSuccess: () => {
       setTimeout(() => {
         closeModal('modal-direct-block');
         refreshActivePageTables();
-      }, 700);
-    } else {
-      if (feedback) {
-        feedback.style.display = 'block';
-        feedback.style.color = 'var(--danger)';
-        feedback.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${escapeHtml(data.message || 'Failed to block domain.')}`;
-      }
-      if (typeof showToast === 'function') {
-        showToast(data.message || 'Failed to block domain.', 'danger');
-      }
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-ban"></i> Block Domain Now';
-      }
+      }, 500);
     }
-  } catch (err) {
-    if (feedback) {
-      feedback.style.display = 'block';
-      feedback.style.color = 'var(--danger)';
-      feedback.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> Network error: ${escapeHtml(err.message)}`;
-    }
-    if (typeof showToast === 'function') {
-      showToast('Network error: ' + err.message, 'danger');
-    }
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-ban"></i> Block Domain Now';
-    }
-  }
+  });
 }
 
 // --------------------------------------------------------------------------
@@ -333,9 +292,261 @@ function renderActionCell(domain, clientIp, detectionInfo, status) {
 }
 
 function refreshActivePageTables() {
-  if (typeof fetchLogs === 'function') fetchLogs(typeof currentPage !== 'undefined' ? currentPage : 1);
-  if (typeof fetchWebsiteActivity === 'function') fetchWebsiteActivity(typeof currentWebPage !== 'undefined' ? currentWebPage : 1);
-  if (typeof fetchAlerts === 'function') fetchAlerts(typeof currentAlertPage !== 'undefined' ? currentAlertPage : 1);
   if (typeof loadBlockRules === 'function') loadBlockRules();
   if (typeof loadBlockRequests === 'function') loadBlockRequests();
 }
+
+// ==========================================================================
+// Domain Block Enforcement Cyber Animation
+// ==========================================================================
+
+let _domainBlockAnimTimer = null;
+
+function playBlockSoundEffect() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+    
+    // Sub-bass impact oscillator
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(32, now + 0.28);
+    
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    
+    // Cyber shimmer oscillator
+    const shimmer = ctx.createOscillator();
+    const shimmerGain = ctx.createGain();
+    shimmer.type = 'sine';
+    shimmer.frequency.setValueAtTime(720, now);
+    shimmer.frequency.exponentialRampToValueAtTime(220, now + 0.16);
+    shimmerGain.gain.setValueAtTime(0.07, now);
+    shimmerGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    shimmer.connect(shimmerGain);
+    shimmerGain.connect(ctx.destination);
+    
+    osc.start(now);
+    shimmer.start(now);
+    osc.stop(now + 0.36);
+    shimmer.stop(now + 0.22);
+  } catch (e) {
+    // Gracefully ignore audio restrictions
+  }
+}
+
+function triggerDomainBlockAnimation(domain, options = {}) {
+  const cleanDomain = String(domain || '').trim().toLowerCase().replace(/\.+$/, '');
+  const reason = options.reason || 'Tier-0 Sinkhole Policy Enforcement';
+
+  // 1. Futuristic cyber synthesizer sound effect
+  playBlockSoundEffect();
+
+  // 2. Populate HUD elements
+  const overlay = document.getElementById('domain-block-overlay');
+  const domainEl = document.getElementById('hud-blocked-domain');
+  const reasonEl = document.getElementById('hud-blocked-reason');
+
+  if (domainEl) domainEl.textContent = cleanDomain;
+  if (reasonEl) reasonEl.textContent = reason;
+
+  if (overlay) {
+    if (_domainBlockAnimTimer) {
+      clearTimeout(_domainBlockAnimTimer);
+      _domainBlockAnimTimer = null;
+    }
+    overlay.classList.add('active');
+
+    // 3. Highlight / pulse Blocked DNS in sidebar
+    const blockedNav = document.querySelector('a[href*="/blocked-dns"]');
+    if (blockedNav) {
+      blockedNav.classList.add('nav-link-pulse');
+      setTimeout(() => blockedNav.classList.remove('nav-link-pulse'), 2500);
+    }
+
+    // 4. Auto-dismiss HUD smoothly
+    _domainBlockAnimTimer = setTimeout(() => {
+      dismissDomainBlockAnimation();
+    }, 1800);
+  }
+}
+
+function dismissDomainBlockAnimation() {
+  const overlay = document.getElementById('domain-block-overlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+  }
+  if (_domainBlockAnimTimer) {
+    clearTimeout(_domainBlockAnimTimer);
+    _domainBlockAnimTimer = null;
+  }
+}
+
+// ==========================================================================
+// Central Universal Domain Blocking Engine
+// ==========================================================================
+
+async function executeDomainBlock(buttonElement, domain, options = {}) {
+  if (!domain) return false;
+  const cleanDomain = String(domain).trim().toLowerCase().replace(/\.+$/, '');
+  const reason = options.reason || 'Manual block from table';
+
+  // 1. Loading Animation on the Button
+  let originalHtml = '';
+  let originalClass = '';
+  if (buttonElement) {
+    originalHtml = buttonElement.innerHTML;
+    originalClass = buttonElement.className;
+    buttonElement.disabled = true;
+    buttonElement.className = (originalClass ? originalClass + ' ' : '') + 'btn-blocking';
+    buttonElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Blocking...';
+  }
+
+  try {
+    // 2. Call backend API to enforce block in database
+    const res = await fetch('/api/blocking/rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: cleanDomain, reason: reason })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // 3. Short "Blocked Successfully" Animation on Button
+      if (buttonElement) {
+        buttonElement.className = 'btn btn-sm btn-blocked-success';
+        buttonElement.innerHTML = '<i class="fa-solid fa-check"></i> Blocked Successfully';
+      }
+
+      // Trigger Cyber HUD overlay animation
+      if (typeof triggerDomainBlockAnimation === 'function') {
+        triggerDomainBlockAnimation(cleanDomain, { reason });
+      }
+
+      // 4. Smoothly remove domain from current list (disappears completely, NOT left with BLOCKED status)
+      setTimeout(() => {
+        removeDomainRowsFromCurrentPage(cleanDomain);
+        if (typeof options.onSuccess === 'function') {
+          options.onSuccess(data);
+        }
+      }, 500);
+
+      if (typeof showToast === 'function') {
+        showToast(data.message || `Domain '${cleanDomain}' blocked and moved to Blocked DNS`, 'success');
+      }
+
+      // Refresh Blocked DNS tables if on Blocked DNS / Settings view
+      if (typeof loadBlockRules === 'function') {
+        setTimeout(loadBlockRules, 600);
+      }
+
+      return true;
+    } else {
+      // 5. Backend reported error (e.g. duplicate block rule)
+      if (buttonElement) {
+        buttonElement.disabled = false;
+        buttonElement.className = originalClass;
+        buttonElement.innerHTML = originalHtml;
+      }
+
+      if (typeof showToast === 'function') {
+        showToast(data.message || `Failed to block domain '${cleanDomain}'`, 'warning');
+      }
+
+      if (typeof options.onError === 'function') {
+        options.onError(data);
+      }
+
+      return false;
+    }
+  } catch (err) {
+    console.error('Error executing domain block:', err);
+    if (buttonElement) {
+      buttonElement.disabled = false;
+      buttonElement.className = originalClass;
+      buttonElement.innerHTML = originalHtml;
+    }
+
+    if (typeof showToast === 'function') {
+      showToast(`Network error: ${err.message}`, 'danger');
+    }
+
+    if (typeof options.onError === 'function') {
+      options.onError(err);
+    }
+
+    return false;
+  }
+}
+
+function removeDomainRowsFromCurrentPage(domain) {
+  if (!domain) return;
+  const lowerDomain = domain.toLowerCase().trim();
+
+  // If on Blocked DNS page itself, do not remove the row
+  if (window.location.pathname.includes('/blocked-dns')) return;
+
+  const rows = document.querySelectorAll('table tbody tr');
+  let removedCount = 0;
+
+  rows.forEach(tr => {
+    const dataDomain = (tr.getAttribute('data-domain') || '').toLowerCase().trim();
+    let isMatch = (dataDomain === lowerDomain);
+
+    if (!isMatch) {
+      const cells = tr.querySelectorAll('td');
+      for (let i = 0; i < Math.min(cells.length, 3); i++) {
+        const txt = cells[i].textContent.toLowerCase().trim();
+        if (txt === lowerDomain || txt.split(/\s+/).includes(lowerDomain)) {
+          isMatch = true;
+          break;
+        }
+      }
+    }
+
+    if (isMatch) {
+      tr.classList.add('row-disappear');
+      removedCount++;
+      setTimeout(() => {
+        if (tr.parentNode) {
+          tr.parentNode.removeChild(tr);
+        }
+      }, 480);
+    }
+  });
+
+  // Update in-memory threat cache if on threat detection page
+  if (typeof cachedDomains !== 'undefined' && Array.isArray(cachedDomains)) {
+    cachedDomains = cachedDomains.filter(d => (d.domain || '').toLowerCase().trim() !== lowerDomain);
+  }
+
+  // Decrement counters on page if present
+  const countBadge = document.getElementById('malicious-domains-count-badge');
+  if (countBadge && removedCount > 0) {
+    const current = parseInt(countBadge.textContent.replace(/[^0-9]/g, '')) || 0;
+    if (current >= removedCount) {
+      countBadge.textContent = `${(current - removedCount).toLocaleString()} Domains`;
+    }
+  }
+  const counterBar = document.getElementById('collapsed-domains-counter');
+  if (counterBar && removedCount > 0) {
+    const current = parseInt(counterBar.textContent.replace(/[^0-9]/g, '')) || 0;
+    if (current >= removedCount) {
+      counterBar.textContent = `${(current - removedCount).toLocaleString()} domains`;
+    }
+  }
+}
+
+// Expose on window
+window.executeDomainBlock = executeDomainBlock;
+window.removeDomainRowsFromCurrentPage = removeDomainRowsFromCurrentPage;
+window.triggerDomainBlockAnimation = triggerDomainBlockAnimation;
+window.dismissDomainBlockAnimation = dismissDomainBlockAnimation;
+

@@ -307,7 +307,7 @@ async function loadBlockRules() {
         `;
       }).join('');
     } else {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px;">No manual block rules created yet. Click <strong>Add Block Rule</strong> to block a domain.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px;">No blocked domains found. Domains blocked across the system will appear here.</td></tr>';
     }
   } catch (err) {
     console.error('Error loading block rules:', err);
@@ -336,6 +336,9 @@ async function submitAddBlockRule(e) {
     });
     const data = await res.json();
     if (data.success) {
+      if (typeof triggerDomainBlockAnimation === 'function') {
+        triggerDomainBlockAnimation(domain, { reason });
+      }
       if (fb) {
         fb.style.display = 'block';
         fb.style.color = 'var(--success)';
@@ -344,11 +347,11 @@ async function submitAddBlockRule(e) {
       if (typeof showToast === 'function') {
         showToast(data.message, 'success');
       }
+      closeModal('modal-add-block-rule');
       setTimeout(() => {
-        closeModal('modal-add-block-rule');
         loadBlockRules();
         loadSinkholeStatus();
-      }, 700);
+      }, 400);
     } else {
       if (fb) {
         fb.style.display = 'block';

@@ -8,7 +8,7 @@ Tests that the SAME captured DNS records appear consistently across:
   - Security Alerts (/api/alerts, /api/alerts/counts)
   - Devices (/api/devices)
 """
-import os, sys, json, time, requests
+import sys, time, requests
 
 API_BASE = "http://127.0.0.1:5000"
 

@@ -1,14 +1,11 @@
 import os
 import sys
-import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 from flask import Flask
 from config import Config
 from database import db
 from services.detection_engine import detection_engine
-from models import MaliciousDomain, DetectionRule, FrequencyRuleConfig
 
 def run_tests():
     app = Flask(__name__)
@@ -37,7 +34,7 @@ def run_tests():
             "support.microsoft.com",
             "update.microsoft.com",
             "windowsupdate.com",
-            "api.github.com",
+            "wikipedia.org",
             "secure.bankofamerica.com"
         ]
         for d in legit_domains:
