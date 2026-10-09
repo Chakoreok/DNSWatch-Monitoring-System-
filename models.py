@@ -293,11 +293,19 @@ class DetectionRule(BaseModel):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def to_dict(self):
+        type_display_map = {
+            'KEYWORD': 'Keyword',
+            'TLD_BLACKLIST': 'TLD Blacklist',
+            'PATTERN': 'Pattern',
+            'REGEX': 'Regex',
+            'FREQUENCY': 'Frequency'
+        }
+        display_type = type_display_map.get((self.rule_type or '').upper(), (self.rule_type or 'Pattern').capitalize())
         return {
             'id': self.id,
             'rule_name': self.rule_name,
             'rule_type': self.rule_type,
-            'type': self.rule_type.capitalize() if self.rule_type else 'Pattern',
+            'type': display_type,
             'pattern': self.pattern,
             'condition': self.pattern,
             'category': self.category,

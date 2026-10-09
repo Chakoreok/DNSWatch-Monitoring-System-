@@ -225,7 +225,7 @@ class DetectionEngine:
         
         # In-memory caches for high-throughput packet processing
         self.malicious_domains = {}  # domain.lower() -> MaliciousDomain dict
-        self.domain_rules = []       # List of compiled rule dicts
+        self.domain_rules = self._get_default_compiled_rules()  # Pre-populated defaults
         self.custom_whitelist = set()  # Set of normalized whitelisted domains
         
         # Frequency rule state
@@ -246,18 +246,66 @@ class DetectionEngine:
 
         # Manual block rules (Tier 0 — admin-approved, highest priority)
         self.manual_block_rules = {}  # normalized_domain -> {'domain':..., 'reason':...}
-        
+
+    def _get_default_compiled_rules(self):
+        """Returns standard pre-compiled cybersecurity heuristic rules when DB is not yet seeded."""
+        default_defs = [
+            (1, "Phishing Keywords Pattern", "KEYWORD", "login-verify, account-update, secure-banking, auth-portal, wallet-connect, verify-account, password-reset, security-challenge, credential-check", "Phishing / Social Engineering", "MEDIUM", "Alert", "Flags domains containing high-risk compound phishing keywords (e.g. login-verify, account-update)."),
+            (2, "Suspicious TLDs", "TLD_BLACKLIST", ".xyz, .top, .club, .online, .info, .tk, .ml, .ga, .cf, .gq, .buzz, .fit, .country, .loan, .work, .click, .surf, .rest, .cam, .quest", "Suspicious Pattern", "MEDIUM", "Alert", "Flags domains using top-level domains statistically abused in bulk malware and automated phishing campaigns."),
+            (3, "Blocked IP in Domain", "PATTERN", "*@*, @*, *:*, */*", "DNS Spoofing / Malformed", "HIGH", "Block", "Blocks queries formatted with suspicious embedded IP patterns, credentials, or illegal URL injection symbols."),
+            (4, "DNS Tunneling & Data Exfiltration", "REGEX", r"^[a-f0-9]{24,}\..+|^[a-z0-9_-]{32,}\..+", "Data Exfiltration / C2 Tunnel", "HIGH", "Block", "Detects abnormally long hex or base64-encoded subdomains characteristic of DNS tunneling utilities (iodine, dnscat2, Cobalt Strike)."),
+            (5, "Cryptomining & Mining Pools", "KEYWORD", "supportxmr, xmrpool, minexmr, nanopool, ethermine, monerohash, coinhive, crypto-loot, cryptonight", "Cryptomining / Malware", "HIGH", "Block", "Blocks DNS lookups to known cryptocurrency mining pools and unauthorized web miner infrastructure."),
+            (6, "Ransomware C2 & Darknet Gateways", "KEYWORD", "tor2web, onion.pet, onion.ws, onion.ly, decrypt-files, restore-files, ransom-payment, lockbit, blackcat", "Ransomware / Extortion", "HIGH", "Block", "Identifies ransomware command and control channels, extortion payment portals, and public Tor clearweb gateways."),
+            (7, "Dynamic DNS & Ephemeral Tunneling", "PATTERN", "*.duckdns.org, *.ngrok-free.app, *.ngrok.io, *.localtunnel.me, *.hopto.org, *.zapto.org, *.bounceme.net, *.ddns.net, *.no-ip.org", "Dynamic DNS / C2 Rendezvous", "MEDIUM", "Alert", "Flags dynamic DNS providers frequently abused for ephemeral C2 hosting and malicious fast-flux redirection."),
+            (8, "Banking & Financial Fraud Lures", "KEYWORD", "secure-banking, ebanking-login, bank-security-update, kyc-verification, claims-refund, tax-refund-portal, id-verification-login", "Financial Phishing", "HIGH", "Alert", "Flags aggressive compound phishing lures targeting online banking, KYC identity submission, and fake tax refunds."),
+            (9, "Crypto Wallet Drainer & Phishing", "KEYWORD", "wallet-connect, claim-airdrop, sync-wallet, validate-seed, metamask-recovery, ledger-support, binance-security", "Crypto Theft / Social Engineering", "HIGH", "Alert", "Detects malicious Web3 crypto drainers and deceptive wallet seed phrase harvesting portals."),
+            (10, "Malware C2 & Reverse Shell Indicators", "KEYWORD", "c2-server, beacon-connect, payload-delivery, rat-connect, agent-heartbeat, shell-connect, reverse-tcp", "Malware C2 / Backdoor", "HIGH", "Block", "Blocks domain indicators used by Remote Access Trojans (RATs) and interactive reverse shell listeners."),
+            (11, "IP Literal Wildcard DNS Evasion", "REGEX", r"^(?:[0-9]{1,3}[-._]){3}[0-9]{1,3}\.(?:nip\.io|sslip\.io|xip\.io)$", "Evasion / Proxy Bypass", "HIGH", "Block", "Blocks wildcard DNS resolving services (nip.io, sslip.io) weaponized by threat actors to route directly to attacker IP literals."),
+            (12, "Targeted Brand Impersonation Compounds", "REGEX", r".*(?:paypal|microsoft|google|apple|amazon|netflix|chase|binance|coinbase|metamask|steam)-(?:[a-z0-9_-]*-)?(?:login|verify|account|security|support|portal|banking|wallet).*", "Phishing / Brand Impersonation", "HIGH", "Alert", "Catches deceptive brand compounds impersonating major tech and banking platforms paired with credential-stealing actions.")
+        ]
+        compiled = []
+        for rid, name, rtype, pat, cat, sev, action, desc in default_defs:
+            rule_dict = {
+                'id': rid,
+                'rule_name': name,
+                'rule_type': rtype,
+                'pattern': pat,
+                'category': cat,
+                'severity': sev,
+                'action': action,
+                'description': desc
+            }
+            if rtype == 'KEYWORD':
+                rule_dict['keywords'] = [k.strip().lower() for k in pat.split(',') if k.strip()]
+            elif rtype == 'TLD_BLACKLIST':
+                rule_dict['tlds'] = [t.strip().lower().lstrip('.') for t in pat.split(',') if t.strip()]
+            elif rtype == 'REGEX':
+                try:
+                    rule_dict['compiled_regex'] = re.compile(pat.strip(), re.IGNORECASE)
+                except Exception:
+                    rule_dict['compiled_regex'] = None
+            elif rtype == 'PATTERN':
+                raw_patterns = [p.strip() for p in pat.split(',') if p.strip()]
+                regex_parts = ['^' + re.escape(p).replace(r'\*', '.*').replace(r'\?', '.') + '$' for p in raw_patterns]
+                try:
+                    rule_dict['compiled_regex'] = re.compile('(?:' + '|'.join(regex_parts) + ')', re.IGNORECASE) if regex_parts else None
+                except Exception:
+                    rule_dict['compiled_regex'] = None
+            compiled.append(rule_dict)
+        return compiled
+
     def init_app(self, app):
         self.app = app
         
     def reload_cache(self, app=None):
         """Loads malicious domains, whitelist, and detection rules from DB into memory."""
         target_app = app or self.app
-        if not has_app_context() and target_app:
-            with target_app.app_context():
-                self._do_reload_cache()
-        else:
-            self._do_reload_cache()
+        if not has_app_context():
+            if target_app:
+                with target_app.app_context():
+                    self._do_reload_cache()
+            return
+        self._do_reload_cache()
 
     def _do_reload_cache(self):
         try:
@@ -311,14 +359,21 @@ class DetectionEngine:
                         except Exception:
                             rule_dict['compiled_regex'] = None
                     elif rule_dict['rule_type'] == 'PATTERN':
-                        regex_pat = '^' + re.escape(r.pattern.strip()).replace('\\*', '.*').replace('\\?', '.') + '$'
-                        try:
-                            rule_dict['compiled_regex'] = re.compile(regex_pat, re.IGNORECASE)
-                        except Exception:
+                        raw_patterns = [p.strip() for p in r.pattern.split(',') if p.strip()]
+                        regex_parts = []
+                        for pat in raw_patterns:
+                            regex_parts.append('^' + re.escape(pat).replace('\\*', '.*').replace('\\?', '.') + '$')
+                        if regex_parts:
+                            try:
+                                combined = '(?:' + '|'.join(regex_parts) + ')'
+                                rule_dict['compiled_regex'] = re.compile(combined, re.IGNORECASE)
+                            except Exception:
+                                rule_dict['compiled_regex'] = None
+                        else:
                             rule_dict['compiled_regex'] = None
                             
                     compiled_rules.append(rule_dict)
-                self.domain_rules = compiled_rules
+                self.domain_rules = compiled_rules if compiled_rules else self._get_default_compiled_rules()
                 
                 # 4. Load Frequency Rule Config
                 freq_config = FrequencyRuleConfig.query.first()
