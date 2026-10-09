@@ -771,6 +771,8 @@ code, pre, .font-mono {
   position: relative;
   overflow: hidden;
   transition: all var(--transition-normal);
+  text-decoration: none;
+  color: inherit;
 }
 
 .stat-card::after {

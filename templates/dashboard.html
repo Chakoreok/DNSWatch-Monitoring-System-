@@ -7,7 +7,7 @@
 {% block content %}
 <!-- Top Metrics Row -->
 <div class="grid-3">
-  <div class="stat-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('views.dns_logs_page') }}'" title="View all DNS queries in Logs">
+  <a href="{{ url_for('views.dns_logs_page') }}" class="stat-card" style="text-decoration: none; color: inherit;" title="View all DNS queries in Logs">
     <div class="stat-icon blue">
       <i class="fa-solid fa-server"></i>
     </div>
@@ -18,9 +18,9 @@
         <i class="fa-solid fa-bolt"></i> <span>Live network capture active</span>
       </div>
     </div>
-  </div>
+  </a>
 
-  <div class="stat-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('views.dns_logs_page') }}?status=SUSPICIOUS'" title="View all 164 suspicious queries in DNS Logs">
+  <a href="{{ url_for('views.dns_logs_page') }}?status=SUSPICIOUS" class="stat-card" style="text-decoration: none; color: inherit;" title="View all 164 suspicious queries in DNS Logs">
     <div class="stat-icon amber">
       <i class="fa-solid fa-triangle-exclamation"></i>
     </div>
@@ -31,9 +31,9 @@
         <i class="fa-solid fa-triangle-exclamation"></i> <span>Requires SOC triage &rarr;</span>
       </div>
     </div>
-  </div>
+  </a>
 
-  <div class="stat-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('views.dns_logs_page') }}?status=BLOCKED'" title="View blocked queries in DNS Logs">
+  <a href="{{ url_for('views.dns_logs_page') }}?status=BLOCKED" class="stat-card" style="text-decoration: none; color: inherit;" title="View blocked queries in DNS Logs">
     <div class="stat-icon red">
       <i class="fa-solid fa-ban"></i>
     </div>
@@ -44,7 +44,7 @@
         <i class="fa-solid fa-shield-halved"></i> <span>Enforced by DNS rules</span>
       </div>
     </div>
-  </div>
+  </a>
 </div>
 
 <!-- Dashboard Split View -->
